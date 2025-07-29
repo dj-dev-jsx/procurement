@@ -14,6 +14,7 @@ use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
 use App\Models\Products;
 use App\Models\PurchaseRequestDetail;
+use App\Notifications\PurchaseRequestSubmitted;
 
 class RequesterController extends Controller
 {
@@ -24,18 +25,17 @@ class RequesterController extends Controller
 
     public function generatePrNumber()
     {
-        $year = date('y'); // 2-digit year
-        $month = date('m'); // 2-digit month
-        $prefix = "PR-$year-$month-";
+        $year = date('y'); 
+        $month = date('m');
+        $prefix = "$year-$month-";
 
-        // Get last PR number starting with the prefix
-        $lastPr = DB::table('tbl_purchase_requests') // or your actual table name
+        $lastPr = DB::table('tbl_purchase_requests') 
             ->where('pr_number', 'like', $prefix . '%')
             ->orderBy('pr_number', 'desc')
             ->first();
 
         if ($lastPr) {
-            // Extract last 3 digits of serial number
+
             $lastSerial = intval(substr($lastPr->pr_number, -3));
             $newSerial = str_pad($lastSerial + 1, 3, '0', STR_PAD_LEFT);
         } else {
@@ -66,25 +66,37 @@ class RequesterController extends Controller
     {
         $data = $request->validated();
 
-        // Create the new purchase request with division_id
-        PurchaseRequest::create([
-            'focal_person' => $data['focal_person'],
+        $purchaseRequest = PurchaseRequest::create([
+            'focal_person_user' => $data['focal_person'],
             'pr_number' => $data['pr_number'],
             'purpose' => $data['purpose'],
             'division_id' => $data['division_id'],
             'requested_by' => $data['requested_by']
         ]);
 
-        return redirect()->route('requester.manage_requests')->with('success', 'Purchase Request created!');
+        return redirect()->route('requester.add_details', ['pr' => $purchaseRequest->id])
+                        ->with('success', 'Purchase Request created!');
     }
 
-    public function manage_requests() {
-    $userId = Auth::id();
 
-    $purchaseRequests = PurchaseRequest::with('details.product.unit')
-        ->where('focal_person', $userId)
-        ->select('id', 'pr_number', 'purpose', 'status', 'is_sent', 'approval_image', 'created_at') // Include missing fields
-        ->get();
+    public function manage_requests(Request $request)
+{
+    $userId = Auth::id();
+    $search = $request->input('search');
+
+    $query = PurchaseRequest::with('details.product.unit')
+        ->where('focal_person_user', $userId)
+        ->when($search, function ($query, $search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('pr_number', 'like', "%$search%")
+                  ->orWhere('purpose', 'like', "%$search%");
+            });
+        })
+        ->select('id', 'pr_number', 'purpose', 'status', 'is_sent', 'approval_image', 'created_at');
+    if ($request->month) {
+        $query->whereMonth('created_at', $request->month);
+    }
+    $purchaseRequests = $query->paginate(10)->withQueryString();
 
     $units = Unit::select('id', 'unit')->get();
 
@@ -93,7 +105,7 @@ class RequesterController extends Controller
         ->get();
 
     return Inertia::render('Requester/ManageRequests', [
-        'purchaseRequests' => $purchaseRequests->map(function ($pr) {
+        'purchaseRequests' => $purchaseRequests->through(function ($pr) {
             return [
                 'id' => $pr->id,
                 'pr_number' => $pr->pr_number,
@@ -117,6 +129,8 @@ class RequesterController extends Controller
         }),
         'units' => $units,
         'products' => $products,
+        'search' => $search,
+        'month' => $request->month,
     ]);
 }
 
@@ -132,18 +146,13 @@ class RequesterController extends Controller
             'unit_price' => 'required|numeric|min:0.01',
         ]);
 
-        // Get the product along with its unit relation
         $product = Products::with('unit')->findOrFail($validated['product_id']);
 
-        // Get the associated purchase request
         $purchaseRequest = PurchaseRequest::findOrFail($pr_id);
 
-        // Compute total price
         $unitPrice = $validated['unit_price'];
         $totalPrice = $validated['quantity'] * $unitPrice;
 
-
-        // Create purchase request detail with snapshot of product info
         $purchaseRequest->details()->create([
             'pr_id' => $purchaseRequest->id,
             'product_id' => $product->id,
@@ -221,7 +230,7 @@ class RequesterController extends Controller
     public function sendForApproval(Request $request, $id)
     {
         $request->validate([
-            'approval_image' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048', // validate image file
+            'approval_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
         $purchaseRequest = PurchaseRequest::findOrFail($id);
@@ -230,16 +239,44 @@ class RequesterController extends Controller
             $image = $request->file('approval_image');
             $filename = time() . '_' . $image->getClientOriginalName();
             $path = $image->storeAs('approval_images', $filename, 'public');
-
             $purchaseRequest->approval_image = $path;
-            $purchaseRequest->is_sent = true;
-            $purchaseRequest->save();
-
-            return back()->with('success', 'Purchase request sent for approval with signed image.');
         }
 
-        return back()->withErrors('No image file found.');
+        $purchaseRequest->is_sent = true;
+        $purchaseRequest->save();
+        $approvers = User::role('bac_approver')->get(); 
+        foreach ($approvers as $approver) {
+            $approver->notify(new PurchaseRequestSubmitted($purchaseRequest));
+        }
+
+        return back()->with('success', 'Purchase request and notification sent to the approving body.');
     }
+
+    public function update_details(Request $request, $detailId)
+    {
+        $request->validate([
+            'quantity' => 'required|numeric|min:1',
+        ]);
+
+        $detail = PurchaseRequestDetail::where('id', $detailId);
+
+        $detail->update([
+            'quantity' => $request->quantity,
+        ]);
+
+        return redirect()->back()->with('success', 'Item updated successfully.');
+    }
+
+    public function delete_details($detailId)
+    {
+        $detail = PurchaseRequestDetail::where('id', $detailId);
+        $detail->delete();
+
+        return redirect()->back()->with('success', 'Item deleted successfully.');
+    }
+
+
+
 
 
 

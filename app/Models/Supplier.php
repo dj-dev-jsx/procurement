@@ -9,4 +9,7 @@ class Supplier extends Model
 {
     /** @use HasFactory<\Database\Factories\SupplierFactory> */
     use HasFactory;
+
+    protected $table = 'tbl_suppliers';
+    protected $fillable = ["item", "address", "tin_num", "representative_name"];
 }

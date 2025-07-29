@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('tbl_purchase_requests', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('focal_person')->constrained('users')->restrictOnDelete();
+            $table->foreignId('focal_person_user')->constrained('users')->restrictOnDelete();
             $table->string('pr_number', 15);
             $table->text('purpose')->nullable();
             $table->foreignId('division_id')->constrained('tbl_divisions')->restrictOnDelete();

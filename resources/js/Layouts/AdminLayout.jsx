@@ -96,7 +96,7 @@ export default function AdminLayout({ header, children }) {
       <aside
         className={`${
           sidebarOpen ? 'block' : 'hidden'
-        } md:block md:w-64 w-full bg-gray-900 text-white shadow-lg md:relative absolute z-50 transition-all duration-300`}
+        } md:block md:w-64 w-full bg-gray-900 text-white shadow-2xl md:sticky md:top-0 h-screen md:h-auto sticky z-50 transition-all duration-300`}
       >
         <div className="p-6 flex flex-col h-full">
           {/* Logo */}
@@ -170,7 +170,7 @@ export default function AdminLayout({ header, children }) {
           </div>
         </header>
 
-        <main className="p-6 flex-1 overflow-y-auto bg-gray-50">{children}</main>
+        <main className="p-6 flex-1 overflow-y-auto bg-gray-300">{children}</main>
       </div>
     </div>
   );

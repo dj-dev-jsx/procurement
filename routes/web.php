@@ -7,21 +7,49 @@ use App\Http\Controllers\Requester\RequesterController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Supply\SupplyController;
+use Illuminate\Support\Facades\Auth;
 
-// Route::get('/', function () {
-//     return Inertia::render('Welcome', [
-//         'canLogin' => Route::has('login'),
-//         'canRegister' => Route::has('register'),
-//         'laravelVersion' => Application::VERSION,
-//         'phpVersion' => PHP_VERSION,
-//     ]);
-// });
+Route::get('/', function () {
+    if (Auth::check()) {
+        $user = Auth::user();
 
-Route::redirect('/', 'dashboard');
+        if ($user->roles->contains('name', 'admin')) {
+            return redirect()->route('admin.dashboard');
+        } elseif ($user->roles->contains('name', 'requester')) {
+            return redirect()->route('requester.dashboard');
+        } elseif ($user->roles->contains('name', 'bac_approver')) {
+            return redirect()->route('bac_approver.dashboard');
+        } elseif ($user->roles->contains('name', 'supply_officer')) {
+            return redirect()->route('supply_officer.dashboard');
+        }
+
+        // fallback if no matching role
+        return redirect()->route('dashboard');
+    }
+
+    return redirect()->route('login'); // guest user
+});
+
+// Notifications polling route
+Route::middleware('auth')->get('/notifications', [NotificationController::class, 'fetch'])
+    ->name('notifications.fetch');
+
+// Mark notification as read route
+Route::middleware('auth')->post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])
+    ->name('notifications.markAsRead');
+
+
+
+// Admin routes
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::get('/', [AdminController::class, 'dashboard'])->name('admin.dashboard');
     Route::get('/view_users', [AdminController::class, 'view_users'])->name('admin.view_users');
+    Route::get('/create_user_form', [AdminController::class, 'create_user_form'])->name('admin.create_user_form');
 });
+
+// Requester routes
 Route::middleware(['auth', 'role:requester'])->prefix('requester')->group(function () {
     Route::get('/', [RequesterController::class, 'dashboard'])->name('requester.dashboard');
     Route::get('/create', [RequesterController::class, 'create'])->name('requester.create');
@@ -29,26 +57,63 @@ Route::middleware(['auth', 'role:requester'])->prefix('requester')->group(functi
     Route::get('/manage_requests', [RequesterController::class, 'manage_requests'])->name('requester.manage_requests');
     Route::get('/add_details/{pr}', [RequesterController::class, 'add_details'])->name('requester.add_details');
     Route::post('/store_details/{pr}', [RequesterController::class, 'store_details'])->name('requester.store_details');
-    Route::get('/requester/print/{id}', [RequesterController::class, 'print'])->name('requester.print');
+    Route::put('/update_details/{detail}', [RequesterController::class, 'update_details'])->name('requester.update_details');
+    Route::delete('/delete_details/{detailId}', [RequesterController::class, 'delete_details'])->name('requester.delete_details');
+    Route::get('/print/{id}', [RequesterController::class, 'print'])->name('requester.print');
     Route::post('/requests/{id}/send-for-approval', [RequesterController::class, 'sendForApproval'])->name('requester.pr.send_for_approval');
-
 });
+
+// Approver routes
 Route::middleware(['auth', 'role:bac_approver'])->prefix('bac_approver')->group(function () {
     Route::get('/', [ApproverController::class, 'dashboard'])->name('bac_approver.dashboard');
     Route::get('/purchase_requests', [ApproverController::class, 'purchase_requests'])->name('bac_approver.purchase_requests');
+    Route::get('/approved_requests', [ApproverController::class, 'approved_requests'])->name('bac_approver.approved_requests');
+    Route::get('/generate_rfq/{pr}', [ApproverController::class, 'generate_rfq'])->name('bac_approver.generate_rfq');
+    Route::post('/store_rfq', [ApproverController::class, 'store_rfq'])->name('bac_approver.store_rfq');
+    Route::get('/print_rfq/{pr}', [ApproverController::class, 'print_rfq'])->name('bac_approver.print_rfq');
     Route::get('/for_review', [ApproverController::class, 'for_review'])->name('bac_approver.for_review');
     Route::get('/approve/{pr}', [ApproverController::class, 'approve'])->name('bac_approver.approve');
     Route::get('/show_details/{pr}', [ApproverController::class, 'show_details'])->name('bac_approver.show_details');
-
+    Route::get('/quoted_price/{pr}', [ApproverController::class, 'quoted_price'])->name('bac_approver.quoted_price');
+    Route::get('/for_quotations', [ApproverController::class, 'for_quotations'])->name('bac_approver.for_quotations');
+    Route::post('/submit_quoted', [ApproverController::class, 'submit_quoted'])->name('bac_approver.submit_quoted');
+    Route::get('/abstract/{pr}', [ApproverController::class, 'abstract_of_quotations'])->name('bac_approver.abstract_of_quotations');
+    Route::post('/bac-approver/mark-winner/{id}', [ApproverController::class, 'markWinner'])->name('bac_approver.mark_winner');
+    Route::get('/approver/print_aoq/{id}/{pr_detail_id}', [ApproverController::class, 'printAOQ'])->name('bac_approver.print_aoq');
 });
+
+// Supply Routes
+Route::middleware(['auth', 'role:supply_officer'])->prefix('supply_officer')->group(function () {
+    Route::get('/', [SupplyController::class, 'dashboard'])->name('supply_officer.dashboard');
+    Route::get('/purchase_orders', [SupplyController::class, 'purchase_orders'])->name('supply_officer.purchase_orders');
+    Route::get('/purchase_orders/create/{id}', [SupplyController::class, 'create_po'])->name('supply_officer.create_po');
+    Route::post('/store_po', [SupplyController::class, 'store_po'])->name('supply_officer.store_po');
+    Route::get('/manage_purchase_orders', [SupplyController::class, 'purchase_orders_table'])->name('supply_officer.purchase_orders_table');
+    Route::get('/print_po/{id}', [SupplyController::class, 'print_po'])->name('supply_officer.print_po');
+    Route::get('/record_iar/{id}', [SupplyController::class, 'record_iar'])->name('supply_officer.record_iar');
+    Route::post('/store_iar', [SupplyController::class, 'store_iar'])->name('supply_officer.store_iar');
+    Route::get('/iar_table', [SupplyController::class, 'iar_table'])->name('supply_officer.iar_table');
+    Route::get('/print_iar/{id}', [SupplyController::class, 'print_iar'])->name('supply_officer.print_iar');
+    Route::get('/inventory', [SupplyController::class, 'inventory'])->name('supply_officer.inventory');
+    Route::get('/issuance/{id}', [SupplyController::class, 'issuance'])->name('supply_officer.issuance');
+    Route::post('/store_ris', [SupplyController::class, 'store_ris'])->name('supply_officer.store_ris');
+    Route::post('/store_ics', [SupplyController::class, 'store_ics'])->name('supply_officer.store_ics');
+    Route::get('/ris_issuance', [SupplyController::class, 'ris_issuance'])->name('supply_officer.ris_issuance');
+    Route::get('/ics_issuance', [SupplyController::class, 'ics_issuance'])->name('supply_officer.ics_issuance');
+    Route::get('/par_issuance', [SupplyController::class, 'par_issuance'])->name('supply_officer.par_issuance');
+});
+
+// Shared dashboard route
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
+// Profile routes
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
+// Auth scaffolding
 require __DIR__.'/auth.php';

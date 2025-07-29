@@ -12,7 +12,7 @@ class PurchaseRequest extends Model
     protected $table = 'tbl_purchase_requests';
     protected $fillable = [
 
-        'pr_number','focal_person', 'division_id', 'purpose', 'requested_by', 'status', 'is_sent', 'approval_image', 
+        'pr_number','focal_person_user', 'division_id', 'purpose', 'requested_by', 'status', 'is_sent', 'approval_image', 
     ];
 
     public function details()
@@ -27,6 +27,15 @@ class PurchaseRequest extends Model
     {
         return $this->belongsTo(User::class, 'requested_by');
     }
+    public function focal_person()
+    {
+        return $this->belongsTo(User::class, 'focal_person_user');
+    }
+    public function rfqs()
+    {
+        return $this->hasMany(RFQ::class, 'pr_id');
+    }
+
 
 
 

@@ -35,5 +35,10 @@ class PurchaseRequestDetail extends Model
     {
         return $this->belongsTo(Products::class, 'product_id');
     }
+    public function rfq_details()
+    {
+        return $this->hasMany(RFQDetail::class, 'pr_details_id');
+    }
+
 
 }

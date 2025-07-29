@@ -15,9 +15,6 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained('users')->restrictOnDelete();
             $table->foreignId('pr_id')->constrained('tbl_purchase_requests')->restrictOnDelete();
-            $table->decimal('estimated_bid', 10, 2);
-            $table->foreignId('awarded_supplier_id')->constrained('tbl_suppliers')->restrictOnDelete();
-            $table->boolean('is_winner');
             $table->timestamps();
         });
     }

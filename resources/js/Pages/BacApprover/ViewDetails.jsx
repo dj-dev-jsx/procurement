@@ -2,11 +2,12 @@ import ApproverLayout from "@/Layouts/ApproverLayout";
 import { Head } from "@inertiajs/react";
 
 export default function ViewDetails({ pr }) {
+    console.log(pr);
     return (
         <ApproverLayout header="Schools Divisions Office - Ilagan | View Details">
             <Head title={`PR #${pr.pr_number} Details`} />
 
-            <div className="max-w-5xl mx-auto mt-10 p-6 bg-white shadow-xl rounded-2xl">
+            <div className="mx-auto mt-10 p-6 bg-white shadow-xl rounded-xl">
                 <div className="border-b pb-4 mb-6">
                     <h2 className="text-3xl font-bold text-gray-800">
                         Purchase Request <span className="text-primary">#{pr.pr_number}</span>
@@ -14,6 +15,14 @@ export default function ViewDetails({ pr }) {
                     <p className="text-sm text-gray-500 mt-1">
                         Created on {new Date(pr.created_at).toLocaleString()}
                     </p>
+                    <div className="my-2">
+                        <button
+                            onClick={() => window.history.back()} // or use window.history.back()
+                            className="inline-flex items-center px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-md text-sm shadow-sm"
+                        >
+                            ← Back
+                        </button>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700 text-base">

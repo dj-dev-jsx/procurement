@@ -18,6 +18,10 @@ return new class extends Migration
             $table->foreignId('unit_id')  
                     ->constrained('tbl_units')
                     ->onDelete('cascade');
+            $table->foreignId('category_id')
+                    ->constrained('tbl_categories')
+                    ->onDelete('cascade');
+
             $table->decimal('default_price', 10, 2)->nullable();
             $table->timestamps();
         });

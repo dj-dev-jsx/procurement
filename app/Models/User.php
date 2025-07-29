@@ -51,4 +51,7 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Division::class);
     }
+    // app/Models/User.php
+
+
 }

@@ -1,0 +1,133 @@
+import ApproverLayout from "@/Layouts/ApproverLayout";
+import { Head, router } from "@inertiajs/react";
+import { useState, useEffect } from "react";
+import TooltipLink from "@/Components/Tooltip";
+
+export default function Quotation({ purchaseRequests, filters = {} }) {
+  const [prNumber, setPrNumber] = useState(filters.prNumber || "");
+  const [focalPerson, setFocalPerson] = useState(filters.focalPerson || "");
+  const [division, setDivision] = useState(filters.division || "");
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      router.get(
+        route("bac_approver.quotation"),
+        { prNumber, focalPerson, division },
+        { preserveState: true, preserveScroll: true, replace: true }
+      );
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [prNumber, focalPerson, division]);
+
+  return (
+    <ApproverLayout header={"Schools Divisions Office - Ilagan | Purchase Requests"}>
+      <Head title="Approved Purchase Requests" />
+
+      <div className="bg-white rounded-lg p-6 shadow space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+          <h2 className="text-lg font-bold text-gray-800">Purchase Requests for Quotation</h2>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={prNumber}
+              onChange={(e) => setPrNumber(e.target.value)}
+              placeholder="Search PR Number..."
+              className="rounded-md border border-gray-300 px-4 py-2 text-sm shadow-sm w-60"
+            />
+            <input
+              type="text"
+              value={focalPerson}
+              onChange={(e) => setFocalPerson(e.target.value)}
+              placeholder="Search Focal Person..."
+              className="rounded-md border border-gray-300 px-4 py-2 text-sm shadow-sm w-60"
+            />
+            <select
+              value={division}
+              onChange={(e) => setDivision(e.target.value)}
+              className="rounded-md border border-gray-300 px-4 py-2 text-sm shadow-sm w-44"
+            >
+              <option value="">All Divisions</option>
+              <option value="1">SGOD</option>
+              <option value="2">OSDS</option>
+              <option value="3">CID</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Table */}
+        {purchaseRequests.length === 0 ? (
+          <p className="text-center text-gray-500 py-12 text-lg font-medium">
+            No Purchase Request found
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-md border border-gray-200 shadow-sm bg-white">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-100 text-gray-700">
+                <tr>
+                  {[
+                    "PR Number",
+                    "Focal Person",
+                    "Division",
+                    "Item",
+                    "Specs",
+                    "Unit",
+                    "Quantity",
+                    "Total Price",
+                    "Actions"
+                  ].map((title) => (
+                    <th
+                      key={title}
+                      className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-center"
+                    >
+                      {title}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-100">
+                {purchaseRequests.map((pr) =>
+                  pr.details.map((item, index) => (
+                    <tr key={`${pr.id}-${index}`} className="hover:bg-blue-50 text-center">
+                      <td className="px-4 py-2 text-indigo-600 font-semibold">
+                        <TooltipLink
+                          to={route("bac_approver.abstract_of_quotations", pr.id)}
+                          tooltip="View Abstract of Quotations"
+                          className="hover:underline"
+                        >
+                          {pr.pr_number}
+                        </TooltipLink>
+                      </td>
+                      <td className="px-4 py-2 text-gray-700">
+                        {[pr.focal_person.firstname, pr.focal_person.middlename, pr.focal_person.lastname]
+                          .filter(Boolean)
+                          .join(" ")}
+                      </td>
+                      <td className="px-4 py-2 text-gray-700">{pr.division.division}</td>
+                      <td className="px-4 py-2 text-gray-700">{item.item}</td>
+                      <td className="px-4 py-2 text-gray-700">{item.specs}</td>
+                      <td className="px-4 py-2 text-gray-700">{item.unit}</td>
+                      <td className="px-4 py-2 text-gray-700">{item.quantity}</td>
+                      <td className="px-4 py-2 text-gray-700">{item.unit_price}</td>
+                      <td className="px-4 py-2">
+                        <a
+                          href={route("bac_approver.quoted_price", pr.id)}
+                          className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition focus:outline-none focus:ring-2 focus:ring-green-400"
+                        >
+                          <span className="mr-2">₱</span> Enter Quoted Price
+                        </a>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </ApproverLayout>
+  );
+}

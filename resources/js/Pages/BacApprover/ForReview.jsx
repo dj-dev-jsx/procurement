@@ -1,36 +1,99 @@
-import TooltipLink from "@/Components/Tooltip";
 import ApproverLayout from "@/Layouts/ApproverLayout";
-import { Head } from "@inertiajs/react";
-import { useState } from "react";
-import { XMarkIcon, EyeIcon, CheckCircleIcon } from "@heroicons/react/24/solid";
-
-export default function ForReview({ sentPurchaseRequests, flash }) {
+import { Head, router } from "@inertiajs/react";
+import { useState, useEffect } from "react";
+import { XMarkIcon } from "@heroicons/react/24/solid";
+import TooltipLink from "@/Components/Tooltip";
+import Swal from 'sweetalert2';
+export default function ForReview({ sentPurchaseRequests, filters = {}, flash }) {
   const [selectedImage, setSelectedImage] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [prNumber, setPrNumber] = useState(filters.prNumber || "");
+  const [focalPerson, setFocalPerson] = useState(filters.focalPerson || "");
+  const [division, setDivision] = useState(filters.division || "");
+  const [status, setStatus] = useState(filters.status || "");
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      router.get(
+        route("bac_approver.for_review"),
+        { prNumber, focalPerson, division, status },
+        { preserveState: true, preserveScroll: true, replace: true }
+      );
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [prNumber, focalPerson, division, status]);
 
   return (
-    <ApproverLayout header="Schools Divisions Office - Ilagan | For Review" flash={flash}>
+    <ApproverLayout header="Schools Division Office - Ilagan | For Review" flash={flash}>
       <Head title="PRs For Review" />
 
-      <div className="max-w-6xl mx-auto mt-8 bg-white p-8 shadow-lg rounded-lg">
-        <h2 className="text-3xl font-semibold mb-6 text-gray-800 border-b border-gray-200 pb-3">
-          Purchase Requests For Review
-        </h2>
+      <div className="bg-white rounded-lg p-6 shadow space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+          <h2 className="text-lg font-bold text-gray-800">Purchase Requests For Review</h2>
+        </div>
 
+        {/* Filters */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={prNumber}
+              onChange={(e) => setPrNumber(e.target.value)}
+              placeholder="Search PR Number..."
+              className="rounded-md border border-gray-300 px-4 py-2 text-sm shadow-sm w-60"
+            />
+            <input
+              type="text"
+              value={focalPerson}
+              onChange={(e) => setFocalPerson(e.target.value)}
+              placeholder="Search Focal Person..."
+              className="rounded-md border border-gray-300 px-4 py-2 text-sm shadow-sm w-60"
+            />
+            <select
+              value={division}
+              onChange={(e) => setDivision(e.target.value)}
+              className="rounded-md border border-gray-300 px-4 py-2 text-sm shadow-sm w-44"
+            >
+              <option value="">All Divisions</option>
+              <option value="1">SGOD</option>
+              <option value="2">OSDS</option>
+              <option value="3">CID</option>
+            </select>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="rounded-md border border-gray-300 px-4 py-2 text-sm shadow-sm w-44"
+            >
+              <option value="">All Statuses</option>
+              <option value="approved">Approved</option>
+              <option value="pending">Pending</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Table */}
         {sentPurchaseRequests.length === 0 ? (
           <p className="text-center text-gray-500 py-12 text-lg font-medium">
             No purchase requests ready for review.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-md border border-gray-200 shadow-sm">
-            <table className="min-w-full table-auto divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+          <div className="overflow-x-auto rounded-md border border-gray-200 shadow-sm bg-white">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-100 text-gray-700">
                 <tr>
-                  {["PR Number", "Purpose", "Status", "Date Sent", "Action"].map((title) => (
+                  {[
+                    "PR Number",
+                    "Focal Person",
+                    "Division",
+                    "Purpose",
+                    "Status",
+                    "Date Sent",
+                    "Action",
+                  ].map((title) => (
                     <th
                       key={title}
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider select-none"
+                      className="px-6 py-3 text-center font-semibold uppercase tracking-wider text-xs"
                     >
                       {title}
                     </th>
@@ -39,76 +102,79 @@ export default function ForReview({ sentPurchaseRequests, flash }) {
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
                 {sentPurchaseRequests.map((pr) => (
-                  <tr
-                    key={pr.id}
-                    className="hover:bg-blue-50 transition-colors duration-200"
-                  >
-                    <td className="px-6 py-4 font-semibold text-blue-700 whitespace-nowrap">
+                  <tr key={pr.id} className="text-center hover:bg-indigo-50 transition">
+                    <td className="px-6 py-4 font-medium text-indigo-600">
                       <TooltipLink
                         to={route("bac_approver.show_details", pr.id)}
                         tooltip="View PR details"
-                        className="hover:underline focus:underline focus:outline-none"
+                        className="hover:underline focus:underline"
                       >
                         {pr.pr_number}
                       </TooltipLink>
                     </td>
-
+                    <td className="px-6 py-4 text-gray-800">
+                      {[pr.focal_person.firstname, pr.focal_person.middlename, pr.focal_person.lastname]
+                        .filter(Boolean)
+                        .join(" ")}
+                    </td>
+                    <td className="px-6 py-4 text-gray-800">{pr.division.division}</td>
                     <td className="px-6 py-4 text-gray-700">{pr.purpose}</td>
                     <td className="px-6 py-4">
-                        {pr.status.toLowerCase() === "approved" && (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800">
-                            Approved
-                            </span>
-                        )}
-                        {pr.status.toLowerCase() === "pending" && (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-yellow-100 text-yellow-800">
-                            Pending
-                            </span>
-                        )}
-                        {pr.status.toLowerCase() === "rejected" && (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-red-100 text-red-800">
-                            Rejected
-                            </span>
-                        )}
-                        {/* fallback if status is something else */}
-                        {!["approved", "pending", "rejected"].includes(pr.status.toLowerCase()) && (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-800 capitalize">
-                            {pr.status}
-                            </span>
-                        )}
-                        </td>
-
-                    <td className="px-6 py-4 text-gray-600 whitespace-nowrap font-mono text-sm">
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-bold ${
+                          pr.status.toLowerCase() === "approved"
+                            ? "bg-green-100 text-green-800"
+                            : pr.status.toLowerCase() === "pending"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : pr.status.toLowerCase() === "rejected"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {pr.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-gray-600 font-mono text-sm whitespace-nowrap">
                       {new Date(pr.created_at).toLocaleDateString()}
                     </td>
+                    
 
-                    <td className="px-6 py-4 whitespace-nowrap flex space-x-3">
-                      <button
-                        onClick={() => {
-                          setSelectedImage(`/storage/${pr.approval_image}`);
-                          setShowModal(true);
-                        }}
-                        className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1 transition"
-                        aria-label="View Approved Form"
-                      >
-                        <EyeIcon className="w-5 h-5 mr-2" />
-                        View Form
-                      </button>
+                      <td className="px-6 py-4 flex space-x-2 justify-center">
+                        <button
+                          onClick={() => {
+                            setSelectedImage(`/storage/${pr.approval_image}`);
+                            setShowModal(true);
+                          }}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm shadow"
+                        >
+                          View Form
+                        </button>
 
-                      <a
-                        href={route("bac_approver.approve", pr.id)}
-                        onClick={(e) => {
-                          if (!confirm("Are you sure you want to approve this?")) {
-                            e.preventDefault();
-                          }
-                        }}
-                        className="inline-flex items-center px-5 py-2 bg-green-600 text-white text-sm font-semibold rounded-md shadow-sm hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-1 transition"
-                        aria-label="Approve Purchase Request"
-                      >
-                        <CheckCircleIcon className="w-5 h-5 mr-2" />
-                        Approve
-                      </a>
-                    </td>
+                        {/* Only show Approve button if not already approved */}
+                        {pr.status.toLowerCase() !== "approved" && (
+                          <button
+                            onClick={async () => {
+                              const result = await Swal.fire({
+                                title: "Are you sure?",
+                                text: "You are about to approve this request.",
+                                icon: "warning",
+                                showCancelButton: true,
+                                confirmButtonColor: "#4f46e5",
+                                cancelButtonColor: "#d33",
+                                confirmButtonText: "Confirm!",
+                              });
+
+                              if (result.isConfirmed) {
+                                router.visit(route("bac_approver.approve", pr.id));
+                              }
+                            }}
+                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm shadow"
+                          >
+                            Approve
+                          </button>
+                        )}
+                      </td>
+
                   </tr>
                 ))}
               </tbody>
@@ -123,28 +189,22 @@ export default function ForReview({ sentPurchaseRequests, flash }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
-            onClick={() => setShowModal(false)} // Close modal on background click
+            onClick={() => setShowModal(false)}
           >
             <div
               className="relative bg-white rounded-lg shadow-xl max-w-xl w-full max-h-[90vh] overflow-auto"
-              onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside modal
-              tabIndex={-1}
+              onClick={(e) => e.stopPropagation()}
             >
               <button
                 onClick={() => setShowModal(false)}
-                className="absolute top-3 right-3 text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded"
+                className="absolute top-3 right-3 text-gray-600 hover:text-gray-900 focus:outline-none"
                 aria-label="Close modal"
               >
                 <XMarkIcon className="w-6 h-6" />
               </button>
-
-              <h3
-                id="modal-title"
-                className="text-xl font-semibold text-gray-800 p-4 border-b"
-              >
+              <h3 id="modal-title" className="text-xl font-semibold text-gray-800 p-4 border-b">
                 Approved Form
               </h3>
-
               <img
                 src={selectedImage}
                 alt="Approved Form"

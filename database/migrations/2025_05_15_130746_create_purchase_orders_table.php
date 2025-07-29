@@ -17,7 +17,7 @@ return new class extends Migration
             $table->foreignId('rfq_id')->constrained('tbl_rfqs')->restrictOnDelete();
             $table->foreignId('supplier_id')->constrained('tbl_suppliers')->restrictOnDelete();
             $table->foreignId('user_id')->constrained('users')->restrictOnDelete();
-            $table->enum('status', ['Pending', 'Approved', 'Rejected'])->default('Pending');
+            $table->enum('status', ['Inspected and Delivered', 'Not yet Delivered'])->default('Not yet Delivered');
             $table->timestamps();
         });
     }

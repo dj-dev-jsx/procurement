@@ -15,19 +15,19 @@ return new class extends Migration
             $table->id();
             $table->foreignId('po_id')->constrained('tbl_purchase_orders')->restrictOnDelete();
             $table->string('iar_number', 20);
-            $table->string('item_desc', 255);
+            $table->string('specs', 255);
             $table->foreignId('unit')->constrained('tbl_units')->restrictOnDelete();
             $table->decimal('quantity_ordered', 10, 2);
-            $table->decimal('quantity_recieved', 10, 2);
+            $table->decimal('quantity_received', 10, 2);
             $table->decimal('unit_price', 10, 2);
             $table->decimal('total_price', 10, 2);
             $table->text('remarks');
             $table->string('inspected_by', 100);
-            $table->date('date_recieved');
+            $table->date('date_received');
             $table->timestamps();
         });
     }
-
+    
     /**
      * Reverse the migrations.
      */

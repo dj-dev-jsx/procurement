@@ -11,6 +11,16 @@ export default function Users({ users }) {
             }
         >
             <Head title="Users" />
+                <div className="flex justify-end mt-4">
+                    <a
+                        href={route("admin.create_user_form")}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition hover:cursor-pointer"
+                    >
+                        + Add User
+                    </a>
+                </div>
+
+
 
             <div className="overflow-x-auto mt-4">
                 <table className="min-w-full bg-white border border-gray-200">
