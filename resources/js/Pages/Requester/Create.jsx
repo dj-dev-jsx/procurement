@@ -1,12 +1,199 @@
+import NavLink from "@/Components/NavLink";
 import RequesterLayout from "@/Layouts/RequesterLayout";
 import { Head, useForm, usePage } from "@inertiajs/react";
-import { User, FileText, ClipboardList, Building2, UserPlus, ArrowRightCircle, SendHorizonalIcon  } from "lucide-react";
+import { User, FileText, ClipboardList, Building2, UserPlus, SendHorizonalIcon } from "lucide-react";
 import Swal from 'sweetalert2';
+import { useState, useMemo } from "react";
 
-export default function Create({ requestedBy }) {
+function ProductTable({ products, handleProductSelect }) {
+    const [search, setSearch] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+
+    const filteredProducts = useMemo(() => {
+        return products.filter((product) =>
+            `${product.name} ${product.specs}`
+                .toLowerCase()
+                .includes(search.toLowerCase())
+        );
+    }, [search, products]);
+
+    const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+    const paginatedProducts = useMemo(() => {
+        const start = (currentPage - 1) * itemsPerPage;
+        return filteredProducts.slice(start, start + itemsPerPage);
+    }, [filteredProducts, currentPage]);
+
+    const handlePrev = () => {
+        setCurrentPage((prev) => Math.max(prev - 1, 1));
+    };
+
+    const handleNext = () => {
+        setCurrentPage((prev) => Math.min(prev + 1, totalPages));
+    };
+
+    return (
+        <div className="flex flex-col md:col-span-2">
+            {/* Header + Add Button */}
+            <div className="flex items-center justify-between mb-3">
+                <h4 className="text-xl font-semibold text-gray-800">Available Products</h4>
+                <NavLink
+                    href="#"
+                    className="text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition duration-200"
+                >
+                    Add New Product
+                </NavLink>
+            </div>
+
+            {/* Search */}
+            <div className="mb-4">
+                <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => {
+                        setSearch(e.target.value);
+                        setCurrentPage(1); // reset to page 1 on search
+                    }}
+                    placeholder="Search by item name or specifications..."
+                    className="w-full md:w-1/3 px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring focus:border-blue-400"
+                />
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm border border-gray-300 rounded-lg shadow">
+                    <thead className="bg-gray-100 text-gray-700">
+                        <tr>
+                            <th className="px-3 py-2 border">Item</th>
+                            <th className="px-3 py-2 border">Specifications</th>
+                            <th className="px-3 py-2 border">Unit</th>
+                            <th className="px-3 py-2 border">Default Price (₱)</th>
+                            <th className="px-3 py-2 border">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {paginatedProducts.length > 0 ? (
+                            paginatedProducts.map((product) => (
+                                <tr key={product.id} className="hover:bg-gray-50">
+                                    <td className="px-3 py-2 border">{product.name}</td>
+                                    <td className="px-3 py-2 border">{product.specs}</td>
+                                    <td className="px-3 py-2 border">{product.unit?.unit || '-'}</td>
+                                    <td className="px-3 py-2 border">{Number(product.default_price).toFixed(2)}</td>
+                                    <td className="px-3 py-2 border text-center">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleProductSelect(product.id)}
+                                            className="bg-blue-500 hover:bg-blue-600 text-white w-8 h-8 rounded-full text-lg font-bold transition"
+                                            title="Add Product"
+                                        >
+                                            +
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))
+                        ) : (
+                            <tr>
+                                <td colSpan="5" className="text-center py-4 text-gray-500">
+                                    No products match your search.
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-4 mt-4">
+                    <button
+                        onClick={handlePrev}
+                        disabled={currentPage === 1}
+                        className={`px-3 py-1 rounded-md ${
+                            currentPage === 1
+                                ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                                : "bg-blue-600 hover:bg-blue-700 text-white"
+                        }`}
+                    >
+                        Previous
+                    </button>
+                    <span className="text-sm text-gray-700">
+                        Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                        onClick={handleNext}
+                        disabled={currentPage === totalPages}
+                        className={`px-3 py-1 rounded-md ${
+                            currentPage === totalPages
+                                ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                                : "bg-blue-600 hover:bg-blue-700 text-white"
+                        }`}
+                    >
+                        Next
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+function ProductModal({ isOpen, onClose, onConfirm, product }) {
+    const [quantity, setQuantity] = useState("");
+
+    if (!isOpen || !product) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-lg">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4">Add Product to PR</h3>
+                <div className="space-y-3 text-sm text-gray-700">
+                    <p><strong>Item:</strong> {product.name}</p>
+                    <p><strong>Specs:</strong> {product.specs}</p>
+                    <p><strong>Unit:</strong> {product.unit?.unit || '-'}</p>
+                    <p><strong>Unit Price (₱):</strong> {Number(product.default_price).toFixed(2)}</p>
+                </div>
+
+                <div className="mt-4">
+                    <label className="block text-sm font-medium mb-1">Quantity</label>
+                    <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={quantity}
+                        onChange={(e) => setQuantity(e.target.value)}
+                        className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                    />
+                </div>
+
+                <div className="mt-6 flex justify-end gap-3">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => {
+                            if (quantity > 0) {
+                                onConfirm(quantity);
+                                setQuantity("");
+                            }
+                        }}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded"
+                    >
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export default function Create({ requestedBy, products }) {
     const user = usePage().props.auth.user;
     const fullName = `${user.firstname} ${user.middlename ?? ''} ${user.lastname}`.trim();
     const prNumberFromServer = usePage().props.pr_number;
+    const [modalOpen, setModalOpen] = useState(false);
+    const [selectedProduct, setSelectedProduct] = useState(null);
+
 
     const { data, setData, post, processing, errors } = useForm({
         focal_person: user.id,
@@ -14,25 +201,64 @@ export default function Create({ requestedBy }) {
         purpose: '',
         division_id: user.division.id,
         requested_by: requestedBy.name || "",
+        products: [],
     });
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
 
-        Swal.fire({
-            title: 'Are you sure?',
-            text: "Do you want to proceed with creating this Purchase Request?",
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonColor: '#2563EB', // Tailwind blue-600
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'Confirm',
-        }).then((result) => {
-            if (result.isConfirmed) {
-                post(route('requester.store'));
-            }
-        });
-    };
+
+const handleSubmit = (e) => {
+    e.preventDefault();
+    console.log("Form data before submit:", data);
+
+    Swal.fire({
+        title: 'Are you sure?',
+        text: "Do you want to proceed with creating this Purchase Request?",
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#2563EB',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Confirm',
+    }).then((result) => {
+        if (result.isConfirmed) {
+            post(route('requester.store'), data, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    Swal.fire('Success!', 'PR submitted.', 'success');
+                },
+                onError: () => {
+                    Swal.fire('Error', 'Something went wrong.', 'error');
+                },
+            });
+        }
+    });
+};
+const handleProductSelect = (productId) => {
+    const selected = products.find(p => p.id === productId);
+    if (selected) {
+        setSelectedProduct(selected);
+        setModalOpen(true);
+    }
+};
+const handleConfirmProduct = (quantity) => {
+    const newProduct = {
+        product_id: selectedProduct.id,
+        item: selectedProduct.name,
+        specs: selectedProduct.specs,
+        unit: selectedProduct.unit.unit,
+        unit_price: Number(selectedProduct.default_price),
+        total_item_price: Number(selectedProduct.default_price * quantity), // 👈 cast to number
+        quantity: Number(quantity), // 👈 cast to number
+        };
+    console.log(newProduct);
+
+
+    setData("products", [...data.products, newProduct]);
+
+    setModalOpen(false);
+    setSelectedProduct(null);
+};
+
+
 
 
     return (
@@ -41,24 +267,9 @@ export default function Create({ requestedBy }) {
 
             <div className="mx-auto mt-6 bg-white p-8 shadow-xl rounded">
                 <h2 className="text-2xl font-semibold text-gray-800 mb-6">Create Purchase Request</h2>
-                {/* Progress Bar */}
-                <div className="max-w-5xl mx-auto mb-5 bg-white shadow-md border border-gray-200 rounded-xl p-6">
-                <div className="w-full bg-gray-200 rounded-full h-4 mb-4 overflow-hidden">
-                    <div
-                    className="bg-blue-600 h-4 rounded-full transition-all duration-500"
-                    style={{ width: "50%" }}
-                    ></div>
-                </div>
-                <div className="flex justify-between text-sm text-gray-600 font-semibold px-1">
-                    <span className="text-blue-500">Step 1: Create PR</span>
-                    <span className="text-gray-600">Step 2: Add Items</span>
-                </div>
-                </div>
-
 
                 <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                    {/* Focal Person */}
                     <div className="flex flex-col">
                         <label htmlFor="focal_person" className="text-sm font-medium text-gray-700 mb-2">
                             Focal Person
@@ -77,7 +288,6 @@ export default function Create({ requestedBy }) {
                         {errors.focal_person && <p className="text-red-600 text-sm mt-1">{errors.focal_person}</p>}
                     </div>
 
-                    {/* PR Number */}
                     <div className="flex flex-col">
                         <label htmlFor="pr_number" className="text-sm font-medium text-gray-700 mb-2">
                             PR Number
@@ -96,7 +306,6 @@ export default function Create({ requestedBy }) {
                         {errors.pr_number && <p className="text-red-600 text-sm mt-1">{errors.pr_number}</p>}
                     </div>
 
-                    {/* Purpose */}
                     <div className="flex flex-col md:col-span-2">
                         <label htmlFor="purpose" className="text-sm font-medium text-gray-700 mb-2">
                             Purpose
@@ -114,8 +323,61 @@ export default function Create({ requestedBy }) {
                         </div>
                         {errors.purpose && <p className="text-red-600 text-sm mt-1">{errors.purpose}</p>}
                     </div>
+                    {/*Selected Product Preview*/}
+                    <div className="flex flex-col md:col-span-2">
+                        <h4 className="text-lg font-semibold mb-2 text-gray-800">Selected Products</h4>
+                        <table className="w-full border border-gray-200 rounded-lg shadow text-sm mb-4">
+                            <thead className="bg-gray-100 text-gray-700">
+                                <tr>
+                                    <th className="px-4 py-2 border-b">Item</th>
+                                    <th className="px-4 py-2 border-b">Specs</th>
+                                    <th className="px-4 py-2 border-b">Unit</th>
+                                    <th className="px-4 py-2 border-b">Unit Price (₱)</th>
+                                    <th className="px-4 py-2 border-b">Quantity</th>
+                                    <th className="px-4 py-2 border-b">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {data.products.length > 0 ? data.products.map((item, index) => (
+                                    <tr key={index} className="text-gray-800">
+                                        <td className="px-4 py-2 border-b text-center">{item.item}</td>
+                                        <td className="px-4 py-2 border-b text-center">{item.specs}</td>
+                                        <td className="px-4 py-2 border-b text-center">{item.unit?.unit}</td>
+                                        <td className="px-4 py-2 border-b text-center">{Number(item.unit_price).toFixed(2)}</td>
+                                        <td className="px-4 py-2 border-b text-center">{item.quantity}</td>
+                                        <td className="px-4 py-2 border-b text-center">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const newProducts = [...data.products];
+                                                    newProducts.splice(index, 1);
+                                                    setData("products", newProducts);
+                                                }}
+                                                className="text-red-600 hover:underline text-sm"
+                                            >
+                                                Remove
+                                            </button>
+                                        </td>
+                                    </tr>
+                                )) : (
+                                    <tr>
+                                        <td colSpan="6" className="text-center text-gray-500 py-4">No products added yet.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
 
-                    {/* Division */}
+                    </div>
+                    <ProductModal
+                        isOpen={modalOpen}
+                        onClose={() => setModalOpen(false)}
+                        onConfirm={handleConfirmProduct}
+                        product={selectedProduct}
+                    />
+
+                    <ProductTable products={products} handleProductSelect={handleProductSelect} />
+
+
                     <div className="flex flex-col">
                         <label htmlFor="division" className="text-sm font-medium text-gray-700 mb-2">
                             Division
@@ -134,7 +396,6 @@ export default function Create({ requestedBy }) {
                         {errors.division_id && <p className="text-red-600 text-sm mt-1">{errors.division_id}</p>}
                     </div>
 
-                    {/* Requested By */}
                     <div className="flex flex-col">
                         <label htmlFor="requested_by" className="text-sm font-medium text-gray-700 mb-2">
                             Requested By
@@ -153,7 +414,6 @@ export default function Create({ requestedBy }) {
                         {errors.requested_by && <p className="text-red-600 text-sm mt-1">{errors.requested_by}</p>}
                     </div>
 
-                    {/* Submit Button */}
                     <div className="md:col-span-2 flex justify-end mt-4 gap-5">
                         <button
                             type="button"

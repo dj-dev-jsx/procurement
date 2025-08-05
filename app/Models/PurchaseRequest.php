@@ -12,8 +12,9 @@ class PurchaseRequest extends Model
     protected $table = 'tbl_purchase_requests';
     protected $fillable = [
 
-        'pr_number','focal_person_user', 'division_id', 'purpose', 'requested_by', 'status', 'is_sent', 'approval_image', 
+        'pr_number','focal_person_user', 'division_id', 'purpose', 'requested_by', 'status', 'is_sent', 'approval_image', 'total_price'
     ];
+    
 
     public function details()
     {

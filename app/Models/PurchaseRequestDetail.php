@@ -10,16 +10,17 @@ class PurchaseRequestDetail extends Model
     use HasFactory;
     protected $table = 'tbl_pr_details';
 
-    protected $fillable = [
-        'pr_id',
-        'product_id',
-        'item',
-        'specs',
-        'unit',
-        'quantity',
-        'unit_price',
-        'total_price',
-    ];
+protected $fillable = [
+    'pr_id',
+    'product_id',
+    'item',
+    'specs',
+    'unit',
+    'quantity',
+    'unit_price',
+    'total_item_price',
+];
+
 
     public function purchaseRequest()
     {

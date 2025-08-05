@@ -81,39 +81,57 @@ export default function Approved({ purchaseRequests }) {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100 text-center">
-                {purchaseRequests.map((pr) =>
-                  pr.details.map((item, index) => (
-                    <tr key={`${pr.id}-${index}`} className="hover:bg-blue-50">
-                      <td className="px-6 py-4 font-medium text-gray-700 whitespace-nowrap">
-                        {pr.pr_number}
-                      </td>
-                      <td className="px-6 py-4 text-gray-700 whitespace-nowrap">
-                        {`${pr.focal_person.firstname} ${pr.focal_person.middlename} ${pr.focal_person.lastname}`}
-                      </td>
-                      <td className="px-6 py-4 text-gray-700 whitespace-nowrap">
-                        {pr.division.division}
-                      </td>
-                      <td className="px-6 py-4 text-gray-700">{item.item}</td>
-                      <td className="px-6 py-4 text-gray-700">{item.specs}</td>
-                      <td className="px-6 py-4 text-gray-700">{item.unit}</td>
-                      <td className="px-6 py-4 text-gray-700">{item.quantity}</td>
-                      <td className="px-6 py-4 text-gray-700">{item.total_price}</td>
-                      <td className="px-6 py-4">
-                        {pr.rfqs.pr_id ? (
-                          <span className="text-sm font-medium text-green-700">RFQs Submitted</span>
-                        ) : (
-                          <a
-                            href={route("bac_approver.generate_rfq", pr.id)}
-                            className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm shadow transition"
-                          >
-                            <DocumentTextIcon className="w-5 h-5 mr-2" />
-                            Generate RFQ
-                          </a>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
+                {purchaseRequests.map((pr) => (
+                  <tr key={pr.id} className="hover:bg-blue-50">
+                    <td className="px-6 py-4 font-medium text-gray-700 whitespace-nowrap">
+                      {pr.pr_number}
+                    </td>
+                    <td className="px-6 py-4 text-gray-700 whitespace-nowrap">
+                      {`${pr.focal_person.firstname} ${pr.focal_person.middlename} ${pr.focal_person.lastname}`}
+                    </td>
+                    <td className="px-6 py-4 text-gray-700 whitespace-nowrap">
+                      {pr.division.division}
+                    </td>
+                    <td className="px-6 py-4 text-gray-700">
+                      {pr.details.length > 0 ? pr.details[0].item : "—"}
+                      {pr.details.length > 1 && (
+                        <span className="text-gray-400 text-xs ml-1 italic">
+                          +{pr.details.length - 1} more
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-gray-700">
+                      {pr.details.length > 0 ? pr.details[0].specs : "—"}
+                    </td>
+                    <td className="px-6 py-4 text-gray-700">
+                      {pr.details.length > 0 ? pr.details[0].unit : "—"}
+                    </td>
+                    <td className="px-6 py-4 text-gray-700">
+                      {pr.details.reduce((sum, d) => sum + d.quantity, 0)}
+                    </td>
+                    <td className="px-6 py-4 text-gray-700">
+                      {pr.details.reduce(
+                        (sum, d) => sum + parseFloat(d.total_item_price || 0),
+                        0
+                      ).toFixed(2)}
+                    </td>
+
+                    <td className="px-6 py-4">
+                      {pr.rfqs?.pr_id ? (
+                        <span className="text-sm font-medium text-green-700">RFQs Submitted</span>
+                      ) : (
+                        <a
+                          href={route("bac_approver.generate_rfq", pr.id)}
+                          className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm shadow transition"
+                        >
+                          <DocumentTextIcon className="w-5 h-5 mr-2" />
+                          Generate RFQ
+                        </a>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+
               </tbody>
             </table>
             

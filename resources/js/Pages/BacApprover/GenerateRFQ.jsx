@@ -20,10 +20,25 @@ export default function GenerateRFQ({ pr, suppliers, purchaseRequest, rfqs, flas
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
   const [submittedSuppliers, setSubmittedSuppliers] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedItemId, setSelectedItemId] = useState(null);
 
   const [estimatedPrice, setEstimatedPrice] = useState(
     pr.details?.[0]?.unit_price || ""
   );
+
+  const openModalForItem = (itemId) => {
+    setSelectedItemId(itemId);
+    setData((prev) => ({ ...prev, pr_detail_id: itemId }));
+    setShowModal(true);
+
+    const selectedItem = pr.details.find((detail) => detail.id === itemId);
+    if (selectedItem) {
+      const unitPrice = selectedItem.unit_price || "";
+      setEstimatedPrice(unitPrice);
+      setData((prev) => ({ ...prev, estimated_bid: unitPrice }));
+    }
+  };
 
   const { data, setData, post, processing, errors, reset } = useForm({
       pr_id: pr.id,
@@ -216,6 +231,40 @@ const handleSubmit = async (e) => {
                 <Truck className="w-5 h-5 text-indigo-600" />
                 Generate RFQ
               </h2>
+              <div className="mb-4">
+                <label className="block mb-2 font-medium text-gray-700">
+                  Select Item from PR
+                </label>
+                <div className="overflow-x-auto border rounded-md shadow-sm">
+                  <table className="min-w-full text-sm text-gray-700">
+                    <thead className="bg-gray-50 text-gray-600 uppercase text-xs tracking-wide">
+                      <tr>
+                        <th className="py-3 px-4 text-left border-b">Item</th>
+                        <th className="py-3 px-4 text-left border-b">Specifications</th>
+                        <th className="py-3 px-4 text-left border-b">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pr.details.map((detail) => (
+                        <tr key={detail.id} className="hover:bg-indigo-50 transition-colors">
+                          <td className="py-3 px-4 border-b">{detail.item}</td>
+                          <td className="py-3 px-4 border-b">{detail.specs}</td>
+                          <td className="py-3 px-4 border-b">
+                            <button
+                              onClick={() => openModalForItem(detail.id)}
+                              className="text-sm bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1 rounded-md"
+                            >
+                              Choose Supplier
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+
 
               {selectedSupplierId && (
                 <div className="mb-4 text-sm text-gray-700 bg-indigo-50 border border-indigo-300 rounded p-3">
@@ -269,100 +318,103 @@ const handleSubmit = async (e) => {
               </form>
             </div>
 
+              {/* Supplier Modal */}
+              {showModal && (
+                <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
+                  <div className="bg-white rounded-lg shadow-lg max-w-5xl w-full p-6 relative">
+                    <button
+                      onClick={() => setShowModal(false)}
+                      className="absolute top-2 right-3 text-gray-500 hover:text-gray-700 text-xl font-bold"
+                    >
+                      ×
+                    </button>
 
-            {/* Supplier Table */}
-            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
-                <Users2 className="w-5 h-5 text-indigo-600" />
-                Available Suppliers
-              </h2>
-              <div className="mb-4 max-w-xs">
-                <input
-                  type="text"
-                  placeholder="Filter suppliers..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setCurrentPage(1); // reset to page 1 when search changes
-                  }}
-                  className="w-full border border-gray-300 rounded-md px-4 py-2 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-              </div>
+                    <h2 className="text-lg font-semibold mb-4">Select a Supplier</h2>
 
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm text-gray-700">
-                  <thead className="bg-gray-50 text-gray-600 uppercase text-xs tracking-wide">
-                    <tr>
-                      <th className="py-3 px-4 text-left border-b">ID</th>
-                      <th className="py-3 px-4 text-left border-b">Name</th>
-                      <th className="py-3 px-4 text-left border-b">Company Name</th>
-                      <th className="py-3 px-4 text-left border-b">Item</th>
-                      <th className="py-3 px-4 text-left border-b">Address</th>
-                      <th className="py-3 px-4 text-left border-b">TIN</th>
-                      <th className="py-3 px-4 text-left border-b">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currentSuppliers.length > 0 ? (
-                      currentSuppliers.map((supplier) => (
-                        <tr key={supplier.id} className="hover:bg-indigo-50 transition-colors">
-                          <td className="py-3 px-4 border-b">{supplier.id}</td>
-                          <td className="py-3 px-4 border-b">{supplier.representative_name}</td>
-                          <td className="py-3 px-4 border-b">{supplier.company_name}</td>
-                          <td className="py-3 px-4 border-b">{supplier.item}</td>
-                          <td className="py-3 px-4 border-b">{supplier.address}</td>
-                          <td className="py-3 px-4 border-b">{supplier.tin_num}</td>
-                          <td className="py-3 px-4 border-b">
-                            <button
-                              onClick={() => {
-                                setSelectedSupplierId(supplier.id);
-                                setData("supplier_id", supplier.id);
-                                if (!estimatedPrice.trim()) {
-                                  const defaultUnitPrice = pr.details?.[0]?.unit_price || '';
-                                  setEstimatedPrice(defaultUnitPrice);
-                                  setData('estimated_bid', defaultUnitPrice);
-                                }
-                                setShowEstimatedPrice(true);
-                              }}
-                              className="text-sm bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1 rounded-md"
-                            >
-                              Select
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="7" className="text-center py-6 text-gray-400 italic">
-                          No suppliers available.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-sm text-gray-700">
+                        <thead className="bg-gray-50 text-gray-600 uppercase text-xs tracking-wide">
+                          <tr>
+                            <th className="py-3 px-4 text-left border-b">ID</th>
+                            <th className="py-3 px-4 text-left border-b">Name</th>
+                            <th className="py-3 px-4 text-left border-b">Company Name</th>
+                            <th className="py-3 px-4 text-left border-b">Item</th>
+                            <th className="py-3 px-4 text-left border-b">Address</th>
+                            <th className="py-3 px-4 text-left border-b">TIN</th>
+                            <th className="py-3 px-4 text-left border-b">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {currentSuppliers.length > 0 ? (
+                            currentSuppliers.map((supplier) => (
+                              <tr key={supplier.id} className="hover:bg-indigo-50 transition-colors">
+                                <td className="py-3 px-4 border-b">{supplier.id}</td>
+                                <td className="py-3 px-4 border-b">{supplier.representative_name}</td>
+                                <td className="py-3 px-4 border-b">{supplier.company_name}</td>
+                                <td className="py-3 px-4 border-b">{supplier.item}</td>
+                                <td className="py-3 px-4 border-b">{supplier.address}</td>
+                                <td className="py-3 px-4 border-b">{supplier.tin_num}</td>
+                                <td className="py-3 px-4 border-b">
+                                  <button
+                                    onClick={() => {
+                                      setSelectedSupplierId(supplier.id);
+                                      setData((prev) => ({
+                                        ...prev,
+                                        supplier_id: supplier.id,
+                                      }));
+                                      if (!estimatedPrice.trim()) {
+                                        const defaultUnitPrice = pr.details?.[0]?.unit_price || "";
+                                        setEstimatedPrice(defaultUnitPrice);
+                                        setData((prev) => ({
+                                          ...prev,
+                                          estimated_bid: defaultUnitPrice,
+                                        }));
+                                      }
+                                      setShowEstimatedPrice(true);
+                                      setShowModal(false);
+                                    }}
+                                    className="text-sm bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1 rounded-md"
+                                  >
+                                    Select
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan="7" className="text-center py-6 text-gray-400 italic">
+                                No suppliers available.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
 
-              {/* Pagination Controls */}
-              <div className="flex justify-between items-center mt-4">
-                <button
-                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50"
-                >
-                  ← Prev
-                </button>
-                <span className="text-sm text-gray-700">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <button
-                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50"
-                >
-                  Next →
-                </button>
-              </div>
-            </div>
+                    {/* Pagination */}
+                    <div className="flex justify-between items-center mt-4">
+                      <button
+                        onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50"
+                      >
+                        ← Prev
+                      </button>
+                      <span className="text-sm text-gray-700">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <button
+                        onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50"
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
             {/* Quotation Info Table */}
             <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
               <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">

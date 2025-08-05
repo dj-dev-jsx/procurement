@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('requested_by');
             $table->enum('status', ['Pending', 'Approved', 'Rejected'])->default('Pending');
             $table->boolean('is_sent')->default(false);
+            $table->decimal('total_price', 12, 2)->nullable();
             $table->string('approval_image', 255)->nullable();
             $table->timestamps();
         });

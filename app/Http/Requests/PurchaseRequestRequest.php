@@ -19,15 +19,22 @@ class PurchaseRequestRequest extends FormRequest
      *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
-    public function rules(): array
+    public function rules()
     {
-        return [ 
-            'pr_number' => ['required', 'string'],
-            'purpose' => ['nullable', 'string'],
-            'division_id' => ['required'],
-            'focal_person' => ['required'],
-            'requested_by' => ['required', 'string'],
-            
-        ];        
+        return [
+            'focal_person' => 'required|exists:users,id',
+            'pr_number' => 'required|string|max:50|unique:tbl_purchase_requests,pr_number',
+            'purpose' => 'required|string|max:1000',
+            'division_id' => 'required|exists:tbl_divisions,id',
+            'requested_by' => 'required|string|max:255',
+
+            'products.*.product_id' => 'required|exists:tbl_products,id',
+            'products.*.item' => 'required|string|max:255',
+            'products.*.specs' => 'required|string|max:1000',
+            'products.*.unit' => 'required|string|max:50',
+            'products.*.unit_price' => 'nullable|numeric|min:0',
+            'products.*.total_item_price' => 'nullable|numeric|min:0',
+            'products.*.quantity' => 'required|numeric|min:0.01',
+        ];
     }
 }

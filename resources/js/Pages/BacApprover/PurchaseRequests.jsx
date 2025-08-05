@@ -1,3 +1,4 @@
+import TooltipLink from "@/Components/Tooltip";
 import ApproverLayout from "@/Layouts/ApproverLayout";
 import { Head, router } from "@inertiajs/react";
 import { useState, useEffect } from "react";
@@ -80,19 +81,7 @@ export default function PurchaseRequests({ purchaseRequests, filters = {} }) {
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-100 text-gray-700">
                 <tr>
-                  {[
-                    "PR Number",
-                    "Focal Person",
-                    "Division",
-                    "Requested By",
-                    "Status",
-                    "Item",
-                    "Specs",
-                    "Unit",
-                    "Quantity",
-                    "Unit Price",
-                    "Total Price",
-                  ].map((title) => (
+                  {["PR Number", "Focal Person", "Division", "Requested By", "Status", "Items Summary"].map((title) => (
                     <th
                       key={title}
                       className="px-6 py-3 text-center font-semibold uppercase tracking-wider text-xs"
@@ -102,46 +91,48 @@ export default function PurchaseRequests({ purchaseRequests, filters = {} }) {
                   ))}
                 </tr>
               </thead>
+
               <tbody className="bg-white divide-y divide-gray-100">
-                {purchaseRequests.data.map((pr) =>
-                  pr.details.map((item, i) => (
-                    <tr
-                      key={`${pr.id}-${i}`}
-                      className="text-center hover:bg-indigo-50 transition"
-                    >
-                      <td className="px-6 py-4 font-medium text-indigo-600">{pr.pr_number}</td>
-                      <td className="px-6 py-4 text-gray-800">
-                        {[pr.focal_person.firstname, pr.focal_person.middlename, pr.focal_person.lastname]
-                          .filter(Boolean)
-                          .join(" ")}
-                      </td>
-                      <td className="px-6 py-4 text-gray-800">{pr.division.division}</td>
-                      <td className="px-6 py-4 text-gray-700">{pr.requested_by}</td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-bold ${
-                            pr.status.toLowerCase() === "approved"
-                              ? "bg-green-100 text-green-800"
-                              : pr.status.toLowerCase() === "pending"
-                              ? "bg-yellow-100 text-yellow-800"
-                              : pr.status.toLowerCase() === "rejected"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}
-                        >
-                          {pr.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-gray-700">{item.item}</td>
-                      <td className="px-6 py-4 text-gray-700">{item.specs}</td>
-                      <td className="px-6 py-4 text-gray-700">{item.unit}</td>
-                      <td className="px-6 py-4 text-gray-700">{item.quantity}</td>
-                      <td className="px-6 py-4 text-gray-700">{item.unit_price}</td>
-                      <td className="px-6 py-4 text-gray-700">{item.total_price}</td>
-                    </tr>
-                  ))
-                )}
+                {purchaseRequests.data.map((pr) => (
+                  <tr key={pr.id} className="text-center hover:bg-indigo-50 transition">
+                    <td className="px-6 py-4 text-gray-800">
+                      <TooltipLink
+                        to={route("bac_approver.show_details", pr.id)}
+                        tooltip="View PR details"
+                        className="hover:underline focus:underline"
+                      >
+                        {pr.pr_number}
+                      </TooltipLink>
+                    </td>
+                    <td className="px-6 py-4 text-gray-800">
+                      {[pr.focal_person.firstname, pr.focal_person.middlename, pr.focal_person.lastname]
+                        .filter(Boolean)
+                        .join(" ")}
+                    </td>
+                    <td className="px-6 py-4 text-gray-800">{pr.division.division}</td>
+                    <td className="px-6 py-4 text-gray-700">{pr.requested_by}</td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-bold ${
+                          pr.status.toLowerCase() === "approved"
+                            ? "bg-green-100 text-green-800"
+                            : pr.status.toLowerCase() === "pending"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : pr.status.toLowerCase() === "rejected"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {pr.status}
+                      </span>
+                    </td>
+                    <td colSpan={6} className="px-6 py-4 text-gray-700 italic text-left">
+                      {pr.details.length > 0 ? pr.details[0].item + (pr.details.length > 1 ? ` and ${pr.details.length - 1} more...` : "") : "No items"}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
+
             </table>
 
             {/* Pagination */}

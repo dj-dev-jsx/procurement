@@ -32,7 +32,7 @@ return new class extends Migration
             // Quantity and price
             $table->decimal('quantity', 10, 2);
             $table->decimal('unit_price', 10, 2);
-            $table->decimal('total_price', 12, 2)->nullable(); // Optional: can be filled during creation
+            $table->decimal('total_item_price', 12, 2)->nullable(); // Optional: can be filled during creation
 
             $table->timestamps();
         });

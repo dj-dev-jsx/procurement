@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Products;
 use App\Models\PurchaseRequestDetail;
 use App\Notifications\PurchaseRequestSubmitted;
+use Illuminate\Support\Facades\Log;
 
 class RequesterController extends Controller
 {
@@ -22,20 +23,20 @@ class RequesterController extends Controller
         return Inertia::render('Requester/Dashboard');
     }
 
-
     public function generatePrNumber()
     {
-        $year = date('y'); 
-        $month = date('m');
+        $year = date('y'); // e.g., 25
+        $month = date('m'); // e.g., 08
         $prefix = "$year-$month-";
 
-        $lastPr = DB::table('tbl_purchase_requests') 
-            ->where('pr_number', 'like', $prefix . '%')
+        // Fetch the last PR for the current year regardless of month
+        $lastPr = DB::table('tbl_purchase_requests')
+            ->where('pr_number', 'like', "$year-%") 
             ->orderBy('pr_number', 'desc')
             ->first();
 
         if ($lastPr) {
-
+            // Get the last 3-digit serial regardless of month
             $lastSerial = intval(substr($lastPr->pr_number, -3));
             $newSerial = str_pad($lastSerial + 1, 3, '0', STR_PAD_LEFT);
         } else {
@@ -46,6 +47,7 @@ class RequesterController extends Controller
     }
 
 
+
     public function create()
     {
         $user = User::with('division')->find(Auth::id());
@@ -53,6 +55,9 @@ class RequesterController extends Controller
         $requestedBy = $division?->requestedBy ?? null;
         $prNumber = $this->generatePrNumber();
         $units = Unit::all();
+        $products = Products::with('unit')
+                    ->select('id', 'name', 'specs', 'unit_id', 'default_price')
+                    ->get();
         
 
         return Inertia::render('Requester/Create', [
@@ -60,23 +65,62 @@ class RequesterController extends Controller
             'requestedBy' => $requestedBy,
             'auth' => ['user' => $user],
             'pr_number' => $prNumber,
+            'products' => $products
         ]);
     }
-    public function store(PurchaseRequestRequest $request)
-    {
-        $data = $request->validated();
+public function store(PurchaseRequestRequest $request)
+{   
+    
+    $data = $request->validated();
+    DB::beginTransaction();
 
+    try {
+        // Step 1: Create the Purchase Request
         $purchaseRequest = PurchaseRequest::create([
             'focal_person_user' => $data['focal_person'],
             'pr_number' => $data['pr_number'],
             'purpose' => $data['purpose'],
             'division_id' => $data['division_id'],
-            'requested_by' => $data['requested_by']
+            'requested_by' => $data['requested_by'],
         ]);
 
-        return redirect()->route('requester.add_details', ['pr' => $purchaseRequest->id])
-                        ->with('success', 'Purchase Request created!');
+        $totalPRPrice = 0;
+
+        // Step 2: Create PR Details
+        foreach ($data['products'] as $item) {
+            $totalItemPrice = $item['quantity'] * $item['unit_price'];
+            $totalPRPrice += $totalItemPrice;
+
+            PurchaseRequestDetail::create([
+                'pr_id' => $purchaseRequest->id,
+                'product_id' => $item['product_id'],
+                'item' => $item['item'],
+                'specs' => $item['specs'],
+                'unit' => $item['unit'],
+                'quantity' => $item['quantity'],
+                'unit_price' => $item['unit_price'],
+                'total_item_price' => $totalItemPrice,
+            ]);
+        }
+
+        // Step 3: Update total price
+        $purchaseRequest->update([
+            'total_price' => $totalPRPrice,
+        ]);
+
+        DB::commit();
+
+        return redirect()
+            ->route('requester.manage_requests')
+            ->with('success', 'Purchase Request and Products successfully submitted!');
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return back()->with('error', 'Error submitting PR. Check the logs.');
     }
+}
+
+
+
 
 
     public function manage_requests(Request $request)

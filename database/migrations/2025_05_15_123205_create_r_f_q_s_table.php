@@ -15,8 +15,10 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained('users')->restrictOnDelete();
             $table->foreignId('pr_id')->constrained('tbl_purchase_requests')->restrictOnDelete();
+            $table->boolean('grouped')->default(true);
             $table->timestamps();
         });
+
     }
 
     /**
