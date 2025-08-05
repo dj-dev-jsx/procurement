@@ -122,47 +122,36 @@ public function store_rfq(Request $request)
     $validated = $request->validate([
         'pr_id' => 'required|integer|exists:tbl_purchase_requests,id',
         'user_id' => 'required|integer|exists:users,id',
-        'supplier_id' => 'required|integer|exists:tbl_suppliers,id',
-        'estimated_bid' => 'required|numeric|min:0',
+        'selections' => 'array',
+        'selections.*.pr_detail_id' => 'required|integer|exists:tbl_pr_details,id',
+        'selections.*.supplier_id' => 'required|integer|exists:tbl_suppliers,id',
+        'selections.*.estimated_bid' => 'required|numeric|min:0',
+    ]);
+    // Create RFQ if not exists
+    $rfq = RFQ::firstOrCreate([
+        'pr_id' => $validated['pr_id'],
+        'user_id' => $validated['user_id'],
     ]);
 
-    $existingRFQ = RFQ::where('pr_id', $validated['pr_id'])->first();
+    foreach ($validated['selections'] as $selection) {
+        // Allow same item but different supplier
+        $exists = RFQDetail::where('rfq_id', $rfq->id)
+            ->where('pr_details_id', $selection['pr_detail_id'])
+            ->where('supplier_id', $selection['supplier_id'])
+            ->exists();
 
-    if (!$existingRFQ) {
-        $existingRFQ = RFQ::create([
-            'pr_id' => $validated['pr_id'],
-            'user_id' => $validated['user_id'],
-        ]);
-    }
-
-    $existingDetail = RFQDetail::where('rfq_id', $existingRFQ->id)
-        ->where('supplier_id', $validated['supplier_id'])
-        ->first();
-
-    if ($existingDetail) {
-         throw ValidationException::withMessages([
-            'supplier_id' => 'This supplier has already been submitted for this PR.',
-        ]);
-    }
-
-    $pr = PurchaseRequest::with('details')->findOrFail($validated['pr_id']);
-    foreach ($pr->details as $detail) {
-        RFQDetail::updateOrCreate(
-            [
-                'rfq_id' => $existingRFQ->id,
-                'pr_details_id' => $detail->id,
-                'supplier_id' => $validated['supplier_id'],
-            ],
-            [
-                'estimated_bid' => $validated['estimated_bid'],
-            ]
-        );
+        if (!$exists) {
+            RFQDetail::create([
+                'rfq_id' => $rfq->id,
+                'pr_details_id' => $selection['pr_detail_id'],
+                'supplier_id' => $selection['supplier_id'],
+                'estimated_bid' => $selection['estimated_bid'],
+            ]);
+        }
     }
 
     return redirect()->back()->with('success', 'RFQ submitted successfully!')->with('reload', true);
 }
-
-
 
 
     public function generate_rfq($id)

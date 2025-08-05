@@ -22,6 +22,7 @@ export default function GenerateRFQ({ pr, suppliers, purchaseRequest, rfqs, flas
   const [submittedSuppliers, setSubmittedSuppliers] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState(null);
+  const [printMode, setPrintMode] = useState("combined");
 
   const [estimatedPrice, setEstimatedPrice] = useState(
     pr.details?.[0]?.unit_price || ""
@@ -39,13 +40,25 @@ export default function GenerateRFQ({ pr, suppliers, purchaseRequest, rfqs, flas
       setData((prev) => ({ ...prev, estimated_bid: unitPrice }));
     }
   };
-
+  const userId = purchaseRequest?.focal_person?.id;
   const { data, setData, post, processing, errors, reset } = useForm({
       pr_id: pr.id,
       user_id: purchaseRequest?.focal_person?.id ?? null,
       supplier_id: '',
       estimated_bid: pr.details?.[0]?.unit_price || "", 
+      selections: []
   });
+  const addSelection = (itemId, supplierId, estimatedBid) => {
+    setData("selections", [
+      ...data.selections,
+      {
+        pr_detail_id: itemId,
+        supplier_id: supplierId,
+        estimated_bid: estimatedBid,
+      },
+    ]);
+  };
+
 
   const handleChange = (e) => {
     const selectedId = e.target.value;
@@ -79,12 +92,14 @@ export default function GenerateRFQ({ pr, suppliers, purchaseRequest, rfqs, flas
     setEstimatedPrice(value);
     setData('estimated_bid', value);
   };
+ const [submittedEntries, setSubmittedEntries] = useState([]);
 
-  const isSupplierAlreadySubmitted = (supplierId) => {
-    return rfqs.some(rfq =>
-      rfq.details.some(detail => detail.supplier_id === parseInt(supplierId))
-    );
-  };
+function isSupplierAlreadySubmitted(itemId, supplierId) {
+  return submittedEntries.some(
+    (entry) => entry.itemId === itemId && entry.supplierId === supplierId
+  );
+}
+
 const handleSubmit = async (e) => {
   e.preventDefault();
 
@@ -121,19 +136,28 @@ const handleSubmit = async (e) => {
   });
 
   if (!result.isConfirmed) return;
-  if (isSupplierAlreadySubmitted(selectedSupplierId)) {
+
+  if (isSupplierAlreadySubmitted(selectedItemId, selectedSupplierId)) {
     Swal.fire({ 
       icon: 'warning',
       title: 'Duplicate Supplier',
-      text: 'This supplier has already been submitted for this RFQ.',
+      text: 'This supplier has already been submitted for this item.',
     });
     return;
   }
 
   setSubmitting(true);
 
-
-  post(route('bac_approver.store_rfq'), {
+post(route('bac_approver.store_rfq'), {
+  pr_id: pr.id,
+  user_id: userId,
+  selections: [
+    {
+      pr_detail_id: selectedItemId,
+      supplier_id: selectedSupplierId,
+      estimated_bid: estimatedPrice,
+    }
+  ],
   preserveScroll: true,
   onSuccess: () => {
     Swal.fire({
@@ -141,6 +165,14 @@ const handleSubmit = async (e) => {
       title: 'Success!',
       text: 'The Request for Quotation has been submitted successfully.',
     });
+
+    setSubmittedEntries(prev => [
+      ...prev,
+      {
+        itemId: selectedItemId,
+        supplierId: selectedSupplierId,
+      },
+    ]);
 
     reset(); 
     setSelectedSupplierId(""); 
@@ -163,11 +195,28 @@ const handleSubmit = async (e) => {
   },
   onFinish: () => setSubmitting(false),
 });
+
+
 };
 
-  const handlePrintRFQ = (id) => {
-    window.open(route("bac_approver.print_rfq", id), "_blank");
-  };
+
+const handlePrintRFQ = (rfqId) => {
+  if (printMode === "combined") {
+    window.open(route("bac_approver.print_rfq", rfqId), "_blank");
+  } else {
+    const rfq = rfqs.find((r) => r.id === rfqId);
+    rfq?.details.forEach((detail) => {
+      window.open(
+        route("bac_approver.print_rfq_per_item", {
+          rfq: rfqId,
+          detail: detail.pr_details_id,
+        }),
+        "_blank"
+      );
+    });
+  }
+};
+
 
 
 
@@ -357,22 +406,17 @@ const handleSubmit = async (e) => {
                                 <td className="py-3 px-4 border-b">
                                   <button
                                     onClick={() => {
+                                      // Fallback unit price from the item if not entered yet
+                                      const finalBid = estimatedPrice.trim() || (pr.details?.find(d => d.id === selectedItemId)?.unit_price || "");
+
+                                      addSelection(selectedItemId, supplier.id, finalBid); // <-- Call the addSelection function
+
                                       setSelectedSupplierId(supplier.id);
-                                      setData((prev) => ({
-                                        ...prev,
-                                        supplier_id: supplier.id,
-                                      }));
-                                      if (!estimatedPrice.trim()) {
-                                        const defaultUnitPrice = pr.details?.[0]?.unit_price || "";
-                                        setEstimatedPrice(defaultUnitPrice);
-                                        setData((prev) => ({
-                                          ...prev,
-                                          estimated_bid: defaultUnitPrice,
-                                        }));
-                                      }
+                                      setEstimatedPrice(finalBid); // Update UI state
                                       setShowEstimatedPrice(true);
                                       setShowModal(false);
                                     }}
+
                                     className="text-sm bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1 rounded-md"
                                   >
                                     Select
@@ -416,6 +460,19 @@ const handleSubmit = async (e) => {
               )}
 
             {/* Quotation Info Table */}
+            <div className="mb-4 max-w-sm flex items-center gap-3">
+              <label className="font-medium text-sm text-gray-700">Print Mode:</label>
+              <select
+                value={printMode}
+                onChange={(e) => setPrintMode(e.target.value)}
+                className="border rounded px-3 py-2 shadow-sm focus:ring-2 focus:outline-none"
+              >
+                <option value="combined">All Items in One Document</option>
+                <option value="separate">One Document per Item</option>
+              </select>
+            </div>
+
+            {/* Quotation Info Table */}
             <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
               <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
                 <ScrollText className="w-5 h-5 text-indigo-600" />
@@ -445,13 +502,31 @@ const handleSubmit = async (e) => {
                                   })}`
                                 : "₱0.00"}
                             </td>
-                            <td className="py-3 px-4 border-b">
+                            <td className="py-3 px-4 border-b flex gap-2">
                               <button
-                                onClick={() => handlePrintRFQ(rfq.id)}
+                                onClick={() => {
+                                  if (printMode === "combined") {
+                                    handlePrintRFQ(rfq.id);
+                                  } else {
+                                    // print only this detail
+                                    window.open(
+                                      route("bac_approver.print_rfq_per_item", {
+                                        rfq: rfq.id,
+                                        detail: detail.pr_details_id,
+                                      }),
+                                      "_blank"
+                                    );
+                                  }
+                                }}
                                 className="text-sm text-white bg-green-600 hover:bg-green-700 px-3 py-1 rounded-md"
                               >
                                 🖨️ Print
                               </button>
+                              {printMode === "separate" && (
+                                <span className="text-xs italic text-gray-500 self-center">
+                                  (per item)
+                                </span>
+                              )}
                             </td>
                           </tr>
                         ))
@@ -463,7 +538,6 @@ const handleSubmit = async (e) => {
                         </td>
                       </tr>
                     )}
-
                   </tbody>
                 </table>
               </div>
