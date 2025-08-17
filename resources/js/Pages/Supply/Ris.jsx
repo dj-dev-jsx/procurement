@@ -33,17 +33,23 @@ export default function Ris({purchaseOrders, inventoryItems, ris, user}) {
           
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-2">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm shadow">
+            <button
+              onClick={() =>
+                window.location.href = route("supply_officer.export_excel")
+              }
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm shadow">
               Monthly Report
             </button>
-            <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm shadow">
-              Export PDF
-            </button>
-            <button className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md text-sm shadow">
+            <button
+              onClick={() =>
+                window.location.href = route("supply_officer.export_excel", {
+                  month: filterMonth,
+                  year: filterYear
+                })
+              }
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm shadow"
+            >
               Export Excel
-            </button>
-            <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm shadow">
-              + New RIS
             </button>
           </div>
         </div>
@@ -143,7 +149,6 @@ export default function Ris({purchaseOrders, inventoryItems, ris, user}) {
                   );
                 })
               )}
-              
             </tbody>
           </table>
         </div>

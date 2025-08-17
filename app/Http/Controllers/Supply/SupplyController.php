@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Supply;
 
+use App\Exports\RISExport;
+use App\Exports\RISExportMonthly;
 use App\Http\Controllers\Controller;
 use App\Models\Division;
 use App\Models\IAR;
@@ -20,6 +22,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
 
 class SupplyController extends Controller
 {
@@ -227,9 +230,10 @@ public function store_iar(Request $request)
     $po = PurchaseOrder::with([
         'rfq',
         'rfq.purchaseRequest',
-        'rfq.purchaseRequest.focal_person', 
+        'rfq.purchaseRequest.focal_person',
         'details.prDetail.product.unit',
     ])->findOrFail($request->po_id);
+
     try {
         $po->update([
             'status' => 'Inspected and Delivered',
@@ -237,49 +241,72 @@ public function store_iar(Request $request)
     } catch (Exception $e) {
         dd($e->getMessage());
     }
-    $unit = optional($po->details->first()?->prDetail?->product?->unit)->id;
 
-    if (!$unit) {
-        return back()->withErrors(['unit' => 'Unable to determine unit from Purchase Order.']);
-    }
-
+    // ✅ Validate using array of items
     $validated = $request->validate([
-        'po_id'             => 'required|exists:tbl_purchase_orders,id',
-        'iar_number'        => 'required|string|max:20',
-        'specs'             => 'required|string|max:255',
-        'quantity_ordered'  => 'required|numeric|min:0',
-        'quantity_received' => 'required|numeric|min:0',
-        'unit_price'        => 'required|numeric|min:0',
-        'total_price'       => 'required|numeric|min:0',
-        'remarks'           => 'nullable|string',
-        'inspected_by'      => 'required|string|max:100',
-        'date_received'     => 'required|date',
+        'po_id'                      => 'required|exists:tbl_purchase_orders,id',
+        'iar_number'                 => 'required|string|max:20',
+        'date_received'              => 'required|date',
+        'items'                       => 'required|array|min:1',
+        'items.*.pr_details_id'       => 'required|exists:tbl_pr_details,id',
+        'items.*.specs'               => 'required|string|max:255',
+        'items.*.quantity_ordered'    => 'required|numeric|min:0',
+        'items.*.quantity_received'   => 'required|numeric|min:0',
+        'items.*.unit_price'          => 'required|numeric|min:0',
+        'items.*.total_price'         => 'required|numeric|min:0',
+        'items.*.remarks'             => 'nullable|string',
+        'items.*.inspected_by'        => 'nullable|string|max:100',
     ]);
 
-    $validated['unit'] = $unit;
     $userId = Auth::id();
     $focalPersonId = optional($po->rfq->purchaseRequest->focal_person)->id ?? $userId;
 
+    foreach ($validated['items'] as $item) {
+        // ✅ Find unit based on pr_details_id
+        $unitId = $po->details
+            ->firstWhere('pr_detail_id', $item['pr_details_id'])
+            ?->prDetail?->product?->unit?->id;
 
+        if (!$unitId) {
+            return back()->withErrors([
+                'unit' => "Unable to determine unit for item: {$item['specs']}"
+            ]);
+        }
 
-    IAR::create($validated);
+        // ✅ Create IAR record
+        IAR::create([
+            'po_id'             => $validated['po_id'],
+            'iar_number'        => $validated['iar_number'],
+            'specs'             => $item['specs'],
+            'quantity_ordered'  => $item['quantity_ordered'],
+            'quantity_received' => $item['quantity_received'],
+            'unit'              => $unitId,
+            'unit_price'        => $item['unit_price'],
+            'total_price'       => $item['total_price'],
+            'remarks'           => $item['remarks'] ?? null,
+            'inspected_by'      => $item['inspected_by'] ?? null,
+            'date_received'     => $validated['date_received'],
+        ]);
 
-    // Save to Inventory
-    Inventory::create([
-        'recorded_by'   => $userId,
-        'requested_by'  => $focalPersonId,
-        'po_id'         => $validated['po_id'],
-        'item_desc'     => $validated['specs'],
-        'total_stock'   => $validated['quantity_received'],
-        'unit'          => $unit,
-        'unit_cost'     => $validated['unit_price'],
-        'last_received' => $validated['date_received'],
-        'status'        => 'Available',
-    ]);
+        // ✅ Save to Inventory
+        Inventory::create([
+            'recorded_by'   => $userId,
+            'requested_by'  => $focalPersonId,
+            'po_id'         => $validated['po_id'],
+            'item_desc'     => $item['specs'],
+            'total_stock'   => $item['quantity_received'],
+            'unit'          => $unitId,
+            'unit_cost'     => $item['unit_price'],
+            'last_received' => $validated['date_received'],
+            'status'        => 'Available',
+        ]);
+    }
 
     return redirect()->route('supply_officer.purchase_orders_table')
         ->with('success', 'IAR and Inventory successfully recorded.');
 }
+
+
 
 public function iar_table(Request $request)
 {
@@ -288,6 +315,8 @@ public function iar_table(Request $request)
     $iar = IAR::with([
         'purchaseOrder.details.prDetail.product.unit',
         'purchaseOrder.supplier',
+        'purchaseOrder.rfq.purchaseRequest.division',
+        'purchaseOrder.rfq.purchaseRequest.focal_person',
     ])
     ->when($search, function ($query, $search) {
         $query->where('iar_number', 'like', "%$search%")
@@ -306,6 +335,7 @@ public function iar_table(Request $request)
         ]
     ]);
 }
+
 
 
 public function print_iar($id)
@@ -479,7 +509,8 @@ public function inventory(Request $request)
         ]);
     }
 
-    public function store_ics(Request $request){
+    public function store_ics(Request $request)
+    {
         $validated = $request->validate([
             'po_id' => 'required|integer|exists:tbl_purchase_orders,id',
             'inventory_item_id' => 'required|integer|exists:tbl_inventory,id',
@@ -491,13 +522,29 @@ public function inventory(Request $request)
             'total_cost' => 'required|numeric|min:0.01',
             'remarks' => 'string|max:255'
         ]);
+
         DB::beginTransaction();
-        try{
-            $inventory = Inventory::findOrFail($validated['inventory_item_id']);
+        try {
+            $inventory = Inventory::with('po.details.prDetail.product.category')
+                ->findOrFail($validated['inventory_item_id']);
 
             if ($inventory->total_stock < $validated['quantity']) {
                 return back()->withErrors(['quantity' => 'Not enough stock available.']);
             }
+
+            $type = null;
+
+            // Get the first product category name from PO details
+            $categoryName = optional(
+                $inventory->po->details->first()?->prDetail?->product?->category
+            )->name;
+
+            if ($categoryName === 'Semi-Expendable') {
+                $type = $validated['unit_cost'] < 5000 ? 'low' : 'high';
+            }
+
+            
+
             $ics = ICS::create([
                 'po_id' => $validated['po_id'],
                 'ics_number' => $validated['ics_number'],
@@ -508,24 +555,33 @@ public function inventory(Request $request)
                 'unit_cost' => $validated['unit_cost'],
                 'total_cost' => $validated['total_cost'],
                 'remarks' => $validated['remarks'],
+                'type' => $type,
             ]);
+
+            // Update stock status
             $inventory->total_stock -= $validated['quantity'];
-            if ($inventory->total_stock <= 0) {
-                $inventory->status = 'Issued';
-            } else {
-                $inventory->status = 'Available';
-            }
+            $inventory->status = $inventory->total_stock <= 0 ? 'Issued' : 'Available';
             $inventory->save();
 
             DB::commit();
-            return redirect()->route('supply_officer.ics_issuance')->with('success', 'RIS successfully recorded.');
-        }catch (\Exception $e) {
-            DB::rollback();
-            return back()->withErrors(['error' => 'Failed to store RIS. ' . $e->getMessage()]);
-        }
 
+            // Redirect based on type
+            if ($type === 'low') {
+                return redirect()->route('supply_officer.ics_issuance_low')
+                    ->with('success', 'ICS (Low) successfully recorded.');
+            } elseif ($type === 'high') {
+                return redirect()->route('supply_officer.ics_issuance_high')
+                    ->with('success', 'ICS (High) successfully recorded.');
+            }
+
+
+        } catch (\Exception $e) {
+            DB::rollback();
+            return back()->withErrors(['error' => 'Failed to store ICS. ' . $e->getMessage()]);
+        }
     }
-    public function ics_issuance(Request $request){
+
+    public function ics_issuance_low(Request $request){
         $search = $request->input('search');
 
         // Get ALL POs with nested relationships
@@ -558,6 +614,45 @@ public function inventory(Request $request)
             }
         }
         return Inertia::render('Supply/Ics', [
+            'purchaseOrders' => $purchaseOrders,
+            'inventoryItems' => $inventoryItems,
+            'ics' => $ics,
+            'user' => Auth::user(), 
+        ]);
+    }
+    public function ics_issuance_high(Request $request){
+        $search = $request->input('search');
+
+        // Get ALL POs with nested relationships
+        $purchaseOrders = PurchaseOrder::with([
+            'details.prDetail.product.category', 
+            'details.prDetail.product.unit',
+            'details.prDetail.purchaseRequest.division',
+            'details.prDetail.purchaseRequest.focal_person'
+        ])->get();
+        $ics = ICS::with(['receivedBy', 'receivedFrom', 'inventoryItem', 'po'])->get();
+
+        // Map all related inventory items (optional)
+        $inventoryItems = [];
+
+        foreach ($purchaseOrders as $po) {
+            foreach ($po->details as $detail) {
+                $product = $detail->prDetail->product ?? null;
+
+                if ($product) {
+                    $inventory = Inventory::where('item_desc', $product->specs)
+                        ->where('unit', $product->unit_id)
+                        ->first();
+
+                    $inventoryItems[] = [
+                        'po_id' => $po->id,
+                        'item_desc' => $product->specs,
+                        'inventory' => $inventory,
+                    ];
+                }
+            }
+        }
+        return Inertia::render('Supply/IcsHigh', [
             'purchaseOrders' => $purchaseOrders,
             'inventoryItems' => $inventoryItems,
             'ics' => $ics,
@@ -603,6 +698,44 @@ public function inventory(Request $request)
             'user' => Auth::user(), 
         ]);
     }
+
+public function export_excel(Request $request)
+{
+    $month = $request->input('month');
+    $year  = $request->input('year');
+
+    // Default filename (with date if provided)
+    $fileName = 'RIS_Report';
+    if ($month && $year) {
+        $fileName .= '_' . date("F", mktime(0, 0, 0, $month, 10)) . '_' . $year;
+    } elseif ($year) {
+        $fileName .= '_' . $year;
+    }
+
+    return Excel::download(
+        new RISExport($month, $year),
+        $fileName . '.xlsx'
+    );
+}
+
+public function export_excel_monthly(Request $request)
+{
+    $month = $request->input('month'); // Example: 3 (March)
+    $year  = $request->input('year');  // Example: 2025
+
+    if (!$month || !$year) {
+        return back()->with('error', 'Please select both month and year.');
+    }
+
+    // File name example: RIS_Report_March_2025.xlsx
+    $fileName = 'RIS_Report_' . date("F", mktime(0, 0, 0, $month, 10)) . '_' . $year . '.xlsx';
+
+    return Excel::download(
+        new RISExportMonthly($month, $year),
+        $fileName
+    );
+}
+
 
 
 }

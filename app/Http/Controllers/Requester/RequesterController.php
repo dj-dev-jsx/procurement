@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Requester;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PurchaseRequestRequest;
+use App\Models\Category;
 use App\Models\Division;
 use App\Models\PurchaseRequest;
 use App\Models\Unit;
@@ -55,6 +56,7 @@ class RequesterController extends Controller
         $requestedBy = $division?->requestedBy ?? null;
         $prNumber = $this->generatePrNumber();
         $units = Unit::all();
+        $categories = Category::all();
         $products = Products::with('unit')
                     ->select('id', 'name', 'specs', 'unit_id', 'default_price')
                     ->get();
@@ -62,6 +64,7 @@ class RequesterController extends Controller
 
         return Inertia::render('Requester/Create', [
             'units' => $units,
+            'categories' => $categories,
             'requestedBy' => $requestedBy,
             'auth' => ['user' => $user],
             'pr_number' => $prNumber,

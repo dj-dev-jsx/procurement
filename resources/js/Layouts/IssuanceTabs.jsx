@@ -3,12 +3,13 @@ import NavLink from "@/Components/NavLink";
 export default function IssuanceTabs() {
   const tabs = [
     { label: "Requisition and Issue Slips", routeName: "supply_officer.ris_issuance" },
-    { label: "Inventory Custodian Slips", routeName: "supply_officer.ics_issuance" },
+    { label: "Inventory Custodian Slips - LOW", routeName: "supply_officer.ics_issuance_low" },
+    { label: "Inventory Custodian Slips - HIGH", routeName: "supply_officer.ics_issuance_high" },
     { label: "Property Acknowledgement Receipt", routeName: "supply_officer.par_issuance" },
   ];
 
   return (
-    <div className="w-full max-w-7xl mx-auto mb-6">
+    <div className="w-full mx-auto mb-6">
       <div className="flex bg-white rounded-lg shadow overflow-hidden border border-gray-300 divide-x divide-gray-300">
         {tabs.map((tab) => {
           const isActive = route().current(tab.routeName);

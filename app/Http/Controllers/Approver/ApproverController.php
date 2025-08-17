@@ -122,19 +122,20 @@ public function store_rfq(Request $request)
     $validated = $request->validate([
         'pr_id' => 'required|integer|exists:tbl_purchase_requests,id',
         'user_id' => 'required|integer|exists:users,id',
-        'selections' => 'array',
+        'selections' => 'required|array|min:1',
         'selections.*.pr_detail_id' => 'required|integer|exists:tbl_pr_details,id',
         'selections.*.supplier_id' => 'required|integer|exists:tbl_suppliers,id',
         'selections.*.estimated_bid' => 'required|numeric|min:0',
     ]);
-    // Create RFQ if not exists
+
+    // Create or get existing RFQ for this PR and user
     $rfq = RFQ::firstOrCreate([
         'pr_id' => $validated['pr_id'],
         'user_id' => $validated['user_id'],
     ]);
 
     foreach ($validated['selections'] as $selection) {
-        // Allow same item but different supplier
+        // Check if this combination already exists (item + supplier)
         $exists = RFQDetail::where('rfq_id', $rfq->id)
             ->where('pr_details_id', $selection['pr_detail_id'])
             ->where('supplier_id', $selection['supplier_id'])
@@ -152,6 +153,7 @@ public function store_rfq(Request $request)
 
     return redirect()->back()->with('success', 'RFQ submitted successfully!')->with('reload', true);
 }
+
 
 
     public function generate_rfq($id)
@@ -311,6 +313,31 @@ public function submit_quoted(Request $request)
 
     return back()->with('success', 'Quoted price submitted successfully.');
 }
+public function submit_bulk_quoted(Request $request)
+{
+    $data = $request->validate([
+        'quotes' => 'required|array|min:1',
+        'quotes.*.rfq_id' => 'required|exists:tbl_rfqs,id',
+        'quotes.*.pr_details_id' => 'required|exists:tbl_pr_details,id',
+        'quotes.*.supplier_id' => 'required|exists:tbl_suppliers,id',
+        'quotes.*.quoted_price' => 'nullable|numeric|min:0',
+    ]);
+
+    foreach ($data['quotes'] as $quote) {
+        RFQDetail::updateOrCreate(
+            [
+                'rfq_id' => $quote['rfq_id'],
+                'pr_details_id' => $quote['pr_details_id'],
+                'supplier_id' => $quote['supplier_id'],
+            ],
+            [
+                'quoted_price' => $quote['quoted_price'],
+            ]
+        );
+    }
+
+    return response()->json(['message' => 'All quoted prices submitted successfully.']);
+}
 
 
     public function abstract_of_quotations($prId)
@@ -332,37 +359,90 @@ public function submit_quoted(Request $request)
             'groupedDetails' => $rfqDetails,
         ]);
     }
-    public function markWinner($id)
-    {
-        $rfqDetail = RFQDetail::findOrFail($id);
+    public function markWinner($id, $pr_detail_id = null)
+{
+    if ($pr_detail_id) {
+        // Per-item winner
+        $rfqDetail = RFQDetail::where('rfq_id', $id)
+            ->where('pr_details_id', $pr_detail_id)
+            ->firstOrFail();
 
-        // Optional: Unmark all previous winners for the same PR Detail
-        RFQDetail::where('pr_details_id', $rfqDetail->pr_detail_id)->update(['is_winner' => false]);
+        // Unmark all previous winners for this PR Detail
+        RFQDetail::where('pr_details_id', $pr_detail_id)
+            ->update(['is_winner' => false]);
 
-        // Mark selected as winner
+        // Mark this one as winner
         $rfqDetail->is_winner = true;
         $rfqDetail->save();
+    } else {
+        // Full PR mode — mark entire supplier as winner
+        $supplierId = request()->input('supplier_id');
 
-        return back()->with('success', 'Supplier marked as winner.');
+        // Unmark all winners for this RFQ
+        RFQDetail::where('rfq_id', $id)
+            ->update(['is_winner' => false]);
+
+        // Mark all items for this supplier
+        RFQDetail::where('rfq_id', $id)
+            ->where('supplier_id', $supplierId)
+            ->update(['is_winner' => true]);
     }
 
-public function printAOQ($id, $pr_detail_id)
+    return back()->with('success', 'Supplier marked as winner.');
+}
+public function printAOQ($id, $pr_detail_id = null)
 {
-    $rfq = RFQ::with(['purchaseRequest.details', 'details.supplier'])->findOrFail($id);
-    $prDetail = $rfq->purchaseRequest->details->firstWhere('id', $pr_detail_id);
+    $rfq = RFQ::with([
+        'purchaseRequest.details',
+        'details.supplier'
+    ])->findOrFail($id);
 
-    $top3 = $rfq->details
-        ->where('pr_details_id', $pr_detail_id)
-        ->sortBy('quoted_price')
+    if (!empty($pr_detail_id)) {
+        // ----------------------
+        // PER-ITEM AOQ MODE
+        // ----------------------
+        $prDetail = $rfq->purchaseRequest
+            ->details
+            ->firstWhere('id', $pr_detail_id);
+
+        if (!$prDetail) {
+            abort(404, 'PR Detail not found.');
+        }
+
+        $top3 = $rfq->details
+            ->where('pr_details_id', $pr_detail_id)
+            ->sortBy('quoted_price')
+            ->take(3)
+            ->values();
+
+        return Inertia::render('BacApprover/PrintAOQ', [
+            'rfq'      => $rfq,
+            'prDetail' => $prDetail,
+            'top3'     => $top3
+        ]);
+    }
+
+    // ----------------------
+    // FULL-PR AOQ MODE
+    // ----------------------
+    $supplierTotals = $rfq->details
+        ->groupBy('supplier_id')
+        ->map(function ($quotes) {
+            return [
+                'supplier'     => $quotes->first()->supplier,
+                'total_amount' => $quotes->sum('quoted_price'),
+            ];
+        })
+        ->sortBy('total_amount')
         ->take(3)
-        ->values(); // Ensure it resets keys (for Vue)
+        ->values();
 
     return Inertia::render('BacApprover/PrintAOQ', [
-        'rfq' => $rfq,
-        'prDetail' => $prDetail,
-        'top3' => $top3
+        'rfq'      => $rfq,
+        'top3'     => $supplierTotals
     ]);
 }
+
 
 
 }

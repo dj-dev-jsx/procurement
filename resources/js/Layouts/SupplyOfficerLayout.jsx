@@ -133,12 +133,19 @@ export default function SupplyOfficerLayout({ header, children }) {
             </NavLink>
             <NavLink
               href={route('supply_officer.ris_issuance')}
-              active={route().current('supply_officer.ris_issuance')}
+              active={[
+                'supply_officer.ris_issuance',
+                'supply_officer.ics_issuance_low',
+                'supply_officer.ics_issuance_high',
+                'supply_officer.par_issuance',
+              ].some((name) => route().current(name))}
               className="flex items-center gap-2 px-4 py-2 hover:bg-indigo-600 rounded-lg"
             >
               <PackageCheck className="w-5 h-5 text-gray-300" />
               <span className="text-white font-medium">Item Issuance</span>
             </NavLink>
+
+
             <NavLink
               // href={route('supply_officer.suppliers')}
               // active={route().current('supply_officer.suppliers')}

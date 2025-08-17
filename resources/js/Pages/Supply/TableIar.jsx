@@ -48,12 +48,9 @@ console.log(iarData);
             <tr>
               {[
                 "IAR Number",
-                "Specs",
-                "Unit",
-                "Supplier",
-                "Qty Ordered",
-                "Qty Received",
-                "Unit Price",
+                "Division",
+                "Items",
+                "Suppliers",
                 "Total Price",
                 "Inspected By",
                 "Actions",
@@ -67,48 +64,84 @@ console.log(iarData);
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 text-center">
-            {iarData.data?.length === 0 ? (
-              <tr>
-                <td colSpan="9" className="py-12 text-gray-500 text-lg font-medium">
-                  No Inspection Reports found.
-                </td>
-              </tr>
-            ) : (
-              iarData.data.map((iar) => {
-                const firstDetail = iar.purchase_order?.details?.[0];
-                const unit = firstDetail?.pr_detail?.product?.unit?.unit ?? "N/A";
-                const supplier = iar.purchase_order?.supplier?.company_name ?? "N/A";
-                
-                return (
-                  <tr key={iar.id} className="hover:bg-blue-50 transition duration-200">
-                    <td className="px-6 py-4 font-semibold text-blue-700 whitespace-nowrap">
-                      {iar.iar_number}
-                    </td>
-                    <td className="px-6 py-4">{iar.specs}</td>
-                    <td className="px-6 py-4">{unit}</td>
-                    <td className="px-6 py-4">{supplier}</td>
-                    <td className="px-6 py-4">{iar.quantity_ordered}</td>
-                    <td className="px-6 py-4">{iar.quantity_received}</td>
-                    <td className="px-6 py-4">₱ {parseFloat(iar.unit_price).toFixed(2)}</td>
-                    <td className="px-6 py-4">
-                      ₱ {(iar.unit_price * iar.quantity_received).toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4">{iar.inspected_by}</td>
-                    <td className="px-6 py-4">
-                      <a
-                        href={route("supply_officer.print_iar", iar.id)}
-                        className="bg-gray-600 text-white px-3 py-2 rounded hover:bg-gray-700 transition flex items-center justify-center gap-1"
-                        target="_blank"
-                      >
-                        <PrinterCheck size={16} /> Print
-                      </a>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
+<tbody className="divide-y divide-gray-100 text-center">
+  {(() => {
+    if (!iarData?.data?.length) {
+      return (
+        <tr>
+          <td colSpan="7" className="py-12 text-gray-500 text-lg font-medium">
+            No Inspection Reports found.
+          </td>
+        </tr>
+      );
+    }
+
+    // Group by IAR number
+    const grouped = iarData.data.reduce((acc, iar) => {
+      const key = iar.iar_number;
+      if (!acc[key]) {
+        acc[key] = {
+          header: iar,
+          specs: [],
+          supplier: iar.purchase_order?.supplier?.company_name ?? "N/A",
+          division: iar.purchase_order?.rfq?.purchase_request?.division?.division ?? "N/A",
+          totalPrice: 0,
+        };
+      }
+    
+
+      // collect product specs from related PR details
+      if (iar.purchase_order?.details?.length) {
+        iar.purchase_order.details.forEach((d) => {
+          if (d.pr_detail?.product?.specs) {
+            acc[key].specs.push(d.pr_detail.product.specs);
+          }
+        });
+      }
+
+      // add IAR-level price (since qty_received & unit_price are on IAR record itself)
+      const qtyReceived = parseFloat(iar.quantity_received) || 0;
+      const unitPrice = parseFloat(iar.unit_price) || 0;
+      acc[key].totalPrice += qtyReceived * unitPrice;
+
+      return acc;
+    }, {});
+    console.log(grouped);
+
+    // Render each IAR row
+    return Object.values(grouped).map(({ header, specs, supplier, division, totalPrice }) => {
+      const itemsSummary =
+        specs.length > 1
+          ? `${specs[0]} +${specs.length - 1} more`
+          : specs[0] || "N/A";
+
+      return (
+        <tr key={header.iar_number} className="hover:bg-blue-50 transition duration-200">
+          <td className="px-6 py-4 font-semibold text-blue-700 whitespace-nowrap">
+            {header.iar_number}
+          </td>
+          <td className="px-6 py-4">{division}</td>
+          <td className="px-6 py-4">{itemsSummary}</td>
+          <td className="px-6 py-4">{supplier}</td>
+          <td className="px-6 py-4">₱ {totalPrice.toFixed(2)}</td>
+          <td className="px-6 py-4">{header.inspected_by}</td>
+          <td className="px-6 py-4">
+            <a
+              href={route("supply_officer.print_iar", header.id)}
+              className="bg-gray-600 text-white px-3 py-2 rounded hover:bg-gray-700 transition flex items-center justify-center gap-1"
+              target="_blank"
+            >
+              <PrinterCheck size={16} /> Print
+            </a>
+          </td>
+        </tr>
+      );
+    });
+  })()}
+</tbody>
+
+
+
         </table>
       </div>
 

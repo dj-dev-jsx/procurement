@@ -67,7 +67,7 @@ export default function Approved({ purchaseRequests }) {
                     "Item",
                     "Specs",
                     "Unit",
-                    "Quantity",
+                    // "Quantity",
                     "Total Price",
                     "Action",
                   ].map((heading) => (
@@ -106,9 +106,9 @@ export default function Approved({ purchaseRequests }) {
                     <td className="px-6 py-4 text-gray-700">
                       {pr.details.length > 0 ? pr.details[0].unit : "—"}
                     </td>
-                    <td className="px-6 py-4 text-gray-700">
+                    {/* <td className="px-6 py-4 text-gray-700">
                       {pr.details.reduce((sum, d) => sum + d.quantity, 0)}
-                    </td>
+                    </td> */}
                     <td className="px-6 py-4 text-gray-700">
                       {pr.details.reduce(
                         (sum, d) => sum + parseFloat(d.total_item_price || 0),

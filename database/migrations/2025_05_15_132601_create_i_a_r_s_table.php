@@ -22,7 +22,7 @@ return new class extends Migration
             $table->decimal('unit_price', 10, 2);
             $table->decimal('total_price', 10, 2);
             $table->text('remarks');
-            $table->string('inspected_by', 100);
+            $table->string('inspected_by', 100)->nullable();
             $table->date('date_received');
             $table->timestamps();
         });

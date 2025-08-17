@@ -89,54 +89,101 @@ export default function PurchaseOrder({ purchaseRequests, filters }) {
               </tr>
             ) : (
               purchaseRequests.data.map((pr) => {
-                const prHasWinner = pr.details.some((detail) =>
+                const winningDetails = pr.details.filter((detail) =>
                   pr.rfqs?.flatMap((r) => r.details).some(
                     (d) => d.pr_details_id === detail.id && d.is_winner
                   )
                 );
 
-                return prHasWinner ? (
-                  <React.Fragment key={`pr-${pr.id}`}>
-                    {pr.details.map((detail, index) => {
-                      const winner = pr.rfqs
-                        ?.flatMap((r) => r.details ?? [])
-                        .find((d) => d.pr_details_id === detail.id && d.is_winner);
+                if (winningDetails.length === 0) return null;
 
-                      if (!winner) return null;
+                const winners = pr.rfqs
+                  ?.flatMap((r) => r.details ?? [])
+                  .filter((d) => winningDetails.some((wd) => wd.id === d.pr_details_id) && d.is_winner);
 
-                      return (
-                        <tr key={`pr-${pr.id}-detail-${detail.id}`} className="hover:bg-blue-50 transition duration-200">
-                          <td className="px-6 py-4 font-semibold text-blue-700 whitespace-nowrap">
-                            {pr.pr_number}
-                          </td>
-                          <td className="px-6 py-4">
-                            {pr.focal_person.firstname} {pr.focal_person.lastname}
-                          </td>
-                          <td className="px-6 py-4">{pr.division.division}</td>
-                          <td className="px-6 py-4">{detail.product.name}</td>
-                          <td className="px-6 py-4">{detail.product.specs}</td>
-                          <td className="px-6 py-4">{detail.quantity}</td>
-                          <td className="px-6 py-4">{detail.product.unit.unit}</td>
-                          <td className="px-6 py-4">{winner.supplier?.company_name || "N/A"}</td>
-                          <td className="px-6 py-4">₱ {parseFloat(winner.quoted_price).toFixed(2)}</td>
-                          {index === 0 && (
-                            <td className="px-6 py-4 align-middle">
-                              <a
-                                href={route("supply_officer.create_po", pr.id)}
-                                className="inline-block px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition"
-                              >
-                                Purchase Order
-                              </a>
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })}
-                  </React.Fragment>
-                ) : null;
+                // Total quoted price
+                const totalQuotedPrice = winners.reduce(
+                  (sum, w) => sum + parseFloat(w.quoted_price || 0),
+                  0
+                );
+
+                return (
+                  <tr key={`pr-${pr.id}`} className="hover:bg-blue-50 transition duration-200">
+                    <td className="px-6 py-4 font-semibold text-blue-700 whitespace-nowrap">
+                      {pr.pr_number}
+                    </td>
+                    <td className="px-6 py-4">
+                      {pr.focal_person.firstname} {pr.focal_person.lastname}
+                    </td>
+                    <td className="px-6 py-4">{pr.division.division}</td>
+
+                    {/* Item */}
+                    <td className="px-6 py-4">
+                      {winningDetails[0]?.product.name || "—"}
+                      {winningDetails.length > 1 && (
+                        <span className="text-gray-400 text-xs ml-1 italic">
+                          +{winningDetails.length - 1} more
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Specs */}
+                    <td className="px-6 py-4">
+                      {winningDetails[0]?.product.specs || "—"}
+                      {winningDetails.length > 1 && (
+                        <span className="text-gray-400 text-xs ml-1 italic">
+                          +{winningDetails.length - 1} more
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Quantity */}
+                    <td className="px-6 py-4">
+                      {winningDetails[0]?.quantity || "—"}
+                      {new Set(winningDetails.map((d) => d.quantity)).size > 1 && (
+                        <span className="text-gray-400 text-xs ml-1 italic">
+                          +{winningDetails.length - 1} more
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Unit */}
+                    <td className="px-6 py-4">
+                      {winningDetails[0]?.product.unit.unit || "—"}
+                      {new Set(winningDetails.map((d) => d.product.unit.unit)).size > 1 && (
+                        <span className="text-gray-400 text-xs ml-1 italic">
+                          +{winningDetails.length - 1} more
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Winner Supplier */}
+                    <td className="px-6 py-4">
+                      {[...new Set(winners.map((w) => w.supplier?.company_name || "N/A"))].join(", ")}
+                    </td>
+
+                    {/* Total Quoted Price */}
+                    <td className="px-6 py-4">
+                      ₱ {totalQuotedPrice.toFixed(2)}
+                    </td>
+
+                    {/* Action */}
+                    <td className="px-6 py-4 align-middle">
+                      <a
+                        href={route("supply_officer.create_po", pr.id)}
+                        className="inline-block px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition"
+                      >
+                        Purchase Order
+                      </a>
+                    </td>
+                  </tr>
+                );
               })
             )}
           </tbody>
+
+
+
         </table>
       </div>
 

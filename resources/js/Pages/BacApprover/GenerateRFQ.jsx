@@ -10,6 +10,16 @@ import ApproverLayout from "@/Layouts/ApproverLayout";
 import axios from 'axios';
 import { Head, useForm } from "@inertiajs/react";
 import Swal from 'sweetalert2';
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Button } from "@headlessui/react";
 
 
 export default function GenerateRFQ({ pr, suppliers, purchaseRequest, rfqs, flash }) {
@@ -23,23 +33,63 @@ export default function GenerateRFQ({ pr, suppliers, purchaseRequest, rfqs, flas
   const [showModal, setShowModal] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [printMode, setPrintMode] = useState("combined");
+  const [isWholePRMode, setIsWholePRMode] = useState(false);
 
-  const [estimatedPrice, setEstimatedPrice] = useState(
-    pr.details?.[0]?.unit_price || ""
-  );
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogContent, setDialogContent] = useState({
+    title: "",
+    message: "",
+    type: "success", // or "error"
+  });
+  const [onConfirm, setOnConfirm] = useState(null);
 
-  const openModalForItem = (itemId) => {
-    setSelectedItemId(itemId);
-    setData((prev) => ({ ...prev, pr_detail_id: itemId }));
-    setShowModal(true);
-
-    const selectedItem = pr.details.find((detail) => detail.id === itemId);
-    if (selectedItem) {
-      const unitPrice = selectedItem.unit_price || "";
-      setEstimatedPrice(unitPrice);
-      setData((prev) => ({ ...prev, estimated_bid: unitPrice }));
-    }
+  const showDialog = ({ title, message, type, onConfirm = null }) => {
+    setDialogContent({ title, message, type });
+    setOnConfirm(() => onConfirm); // Save the callback
+    setDialogOpen(true);
   };
+  const confirmSubmit = (e, detailId, supplierId) => {
+    e.preventDefault();
+    showDialog({
+      title: "Confirm Submission",
+      message: "Are you sure you want to submit this quotation?",
+      type: "confirm",
+      onConfirm: () => handleSubmit(detailId, supplierId),
+    });
+  };
+
+const [estimatedPrice, setEstimatedPrice] = useState(() => {
+  const initial = {};
+  if (pr.details) {
+    pr.details.forEach(detail => {
+      initial[detail.id] = detail.unit_price || "";
+    });
+  }
+  console.log("Initial estimatedPrice (in useState init):", initial);
+  return initial;
+});
+
+useEffect(() => {
+  console.log("EstimatedPrice state changed:", estimatedPrice);
+}, [estimatedPrice]);
+
+
+const openModalForItem = (itemId) => {
+  setSelectedItemId(itemId);
+  setData((prev) => ({ ...prev, pr_detail_id: itemId }));
+  setShowModal(true);
+
+  const selectedItem = pr.details.find((detail) => detail.id === itemId);
+  if (selectedItem) {
+    const unitPrice = selectedItem.unit_price || "";
+    setEstimatedPrice(prev => ({
+      ...prev,
+      [itemId]: unitPrice,
+    }));
+    setData((prev) => ({ ...prev, estimated_bid: unitPrice }));
+  }
+};
+
   const userId = purchaseRequest?.focal_person?.id;
   const { data, setData, post, processing, errors, reset } = useForm({
       pr_id: pr.id,
@@ -49,15 +99,19 @@ export default function GenerateRFQ({ pr, suppliers, purchaseRequest, rfqs, flas
       selections: []
   });
   const addSelection = (itemId, supplierId, estimatedBid) => {
-    setData("selections", [
-      ...data.selections,
-      {
-        pr_detail_id: itemId,
-        supplier_id: supplierId,
-        estimated_bid: estimatedBid,
-      },
-    ]);
+    setData((prevData) => {
+      const existing = prevData.selections || [];
+      // Remove any existing selection for this item+supplier combo
+      const filtered = existing.filter(
+        (s) => !(s.pr_detail_id === itemId && s.supplier_id === supplierId)
+      );
+      return {
+        ...prevData,
+        selections: [...filtered, { pr_detail_id: itemId, supplier_id: supplierId, estimated_bid: estimatedBid }],
+      };
+    });
   };
+
 
 
   const handleChange = (e) => {
@@ -89,9 +143,15 @@ export default function GenerateRFQ({ pr, suppliers, purchaseRequest, rfqs, flas
 
   const handleEstimatedPriceChange = (e) => {
     const value = e.target.value;
-    setEstimatedPrice(value);
-    setData('estimated_bid', value);
+    if (selectedItemId !== null) {
+      setEstimatedPrice(prev => ({
+        ...prev,
+        [selectedItemId]: value,
+      }));
+      setData('estimated_bid', value);
+    }
   };
+
  const [submittedEntries, setSubmittedEntries] = useState([]);
 
 function isSupplierAlreadySubmitted(itemId, supplierId) {
@@ -99,105 +159,152 @@ function isSupplierAlreadySubmitted(itemId, supplierId) {
     (entry) => entry.itemId === itemId && entry.supplierId === supplierId
   );
 }
-
-const handleSubmit = async (e) => {
-  e.preventDefault();
-
-  if (!selectedSupplierId) {
-    Swal.fire({
-      icon: 'warning',
-      title: 'No Supplier Selected',
-      text: 'Please select a supplier before proceeding.',
-    });
-    return;
-  }
-
-  if (!showEstimatedPrice) {
-    setShowEstimatedPrice(true);
-    return;
-  }
-
-  if (!estimatedPrice.trim()) {
-    Swal.fire({
-      icon: 'warning',
-      title: 'Missing Estimated Price',
-      text: 'Please enter an estimated price.',
-    });
-    return;
-  }
-
-  const result = await Swal.fire({
-    icon: 'question',
-    title: 'Are you sure?',
-    text: 'Do you want to submit this RFQ?',
-    showCancelButton: true,
-    confirmButtonText: 'Confirm',
-    cancelButtonText: 'Cancel',
-  });
-
-  if (!result.isConfirmed) return;
-
-  if (isSupplierAlreadySubmitted(selectedItemId, selectedSupplierId)) {
-    Swal.fire({ 
-      icon: 'warning',
-      title: 'Duplicate Supplier',
-      text: 'This supplier has already been submitted for this item.',
-    });
-    return;
-  }
-
+const submitData = () => {
   setSubmitting(true);
 
-post(route('bac_approver.store_rfq'), {
-  pr_id: pr.id,
-  user_id: userId,
-  selections: [
-    {
-      pr_detail_id: selectedItemId,
+  // Build selections payload
+  let selections = [];
+
+  if (isWholePRMode) {
+    selections = pr.details.map((item) => ({
+      pr_detail_id: item.id,
       supplier_id: selectedSupplierId,
-      estimated_bid: estimatedPrice,
-    }
-  ],
-  preserveScroll: true,
-  onSuccess: () => {
-    Swal.fire({
-      icon: 'success',
-      title: 'Success!',
-      text: 'The Request for Quotation has been submitted successfully.',
-    });
-
-    setSubmittedEntries(prev => [
-      ...prev,
+      estimated_bid: estimatedPrice[item.id],
+    }));
+  } else {
+    selections = [
       {
-        itemId: selectedItemId,
-        supplierId: selectedSupplierId,
+        pr_detail_id: selectedItemId,
+        supplier_id: selectedSupplierId,
+        estimated_bid: estimatedPrice[selectedItemId],
       },
-    ]);
+    ];
+  }
 
-    reset(); 
-    setSelectedSupplierId(""); 
-    setShowEstimatedPrice(false); 
-  },
-  onError: (errors) => {
-    if (errors.supplier_id) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Duplicate Entry',
-        text: errors.supplier_id,
+  post(route("bac_approver.store_rfq"), {
+    pr_id: pr.id,
+    user_id: userId,
+    selections,
+    preserveScroll: true,
+    onSuccess: () => {
+      showDialog({
+        title: "Success!",
+        message: "The Request for Quotation has been submitted successfully.",
+        type: "success",
       });
-    } else {
-      Swal.fire({
-        icon: 'error',
-        title: 'Submission Failed',
-        text: 'Please check your input fields.',
-      });
-    }
-  },
-  onFinish: () => setSubmitting(false),
-});
 
+      if (!isWholePRMode) {
+        setSubmittedEntries((prev) => [
+          ...prev,
+          {
+            itemId: selectedItemId,
+            supplierId: selectedSupplierId,
+          },
+        ]);
+      }
 
+      reset();
+      setSelectedSupplierId("");
+      setShowEstimatedPrice(false);
+    },
+    onError: (errors) => {
+      if (errors.supplier_id) {
+        showDialog({
+          title: "Duplicate Entry!",
+          message: errors.supplier_id,
+          type: "error",
+        });
+      } else {
+        showDialog({
+          title: "Submission Failed!",
+          message: "Please check your input fields.",
+          type: "error",
+        });
+      }
+    },
+    onFinish: () => setSubmitting(false),
+  });
 };
+
+const handleSubmit = (e) => {
+  e.preventDefault();
+
+  // Supplier selection check
+  if (!selectedSupplierId && !isWholePRMode) {
+    showDialog({
+      title: "No Supplier Selected",
+      message: "Please select a supplier before proceeding.",
+      type: "error",
+    });
+    return;
+  }
+
+  // Price checks
+  if (isWholePRMode) {
+    const missingPrices = pr.details.filter(
+      (item) => !estimatedPrice[item.id] || !estimatedPrice[item.id].trim()
+    );
+    if (missingPrices.length > 0) {
+      showDialog({
+        title: "Missing Prices",
+        message: "Please enter estimated prices for all items.",
+        type: "error",
+      });
+      return;
+    }
+  } else {
+    if (selectedItemId === null) {
+      // whole PR mode check (redundant, but keep for safety)
+      const missingPrice = pr.details.some((detail) => {
+        const price = estimatedPrice[detail.id];
+        return !price || !price.toString().trim();
+      });
+      if (missingPrice) {
+        showDialog({
+          title: "Missing Estimated Price",
+          message: "Please enter an estimated price for all items.",
+          type: "error",
+        });
+        return;
+      }
+    } else {
+      // per item check
+      const price = estimatedPrice[selectedItemId];
+      if (!price || !price.toString().trim()) {
+        showDialog({
+          title: "Missing Estimated Price",
+          message: "Please enter an estimated price.",
+          type: "error",
+        });
+        return;
+      }
+    }
+  }
+
+  // Duplicate check in per-item mode
+  if (
+    !isWholePRMode &&
+    isSupplierAlreadySubmitted(selectedItemId, selectedSupplierId)
+  ) {
+    showDialog({
+      title: "Duplicate Supplier",
+      message: "This supplier has already been submitted for this item.",
+      type: "error",
+    });
+    return;
+  }
+
+  // Show confirm dialog
+  showDialog({
+    title: "Confirm Submission",
+    message: "Are you sure you want to submit this quotation?",
+    type: "confirm",
+    onConfirm: () => submitData(),
+  });
+};
+
+
+
 
 
 const handlePrintRFQ = (rfqId) => {
@@ -281,10 +388,25 @@ const handlePrintRFQ = (rfqId) => {
                 Generate RFQ
               </h2>
               <div className="mb-4">
-                <label className="block mb-2 font-medium text-gray-700">
-                  Select Item from PR
-                </label>
+                <div className="flex justify-between mx-2">
+                  <label className="block mb-2 font-medium text-gray-700">
+                    Select Item from PR
+                  </label>
+                  <div className="mb-4">
+                    <button
+                      onClick={() => {
+                        setSelectedItemId(null); // null = means "whole PR"
+                        setShowModal(true);
+                      }}
+                      className="inline-flex items-center px-4 py-2 bg-blue-950 hover:bg-blue-900 text-white rounded-md text-sm shadow-sm"
+                    >
+                      Choose Supplier for Entire PR
+                    </button>
+                  </div>
+                </div>
                 <div className="overflow-x-auto border rounded-md shadow-sm">
+
+
                   <table className="min-w-full text-sm text-gray-700">
                     <thead className="bg-gray-50 text-gray-600 uppercase text-xs tracking-wide">
                       <tr>
@@ -331,7 +453,7 @@ const handlePrintRFQ = (rfqId) => {
               )}
 
               <form onSubmit={handleSubmit} className="space-y-6 max-w-lg">
-                {showEstimatedPrice && (
+                {showEstimatedPrice && selectedItemId !== null && (
                   <div>
                     <label htmlFor="estimatedPrice" className="block mb-2 font-medium">
                       Estimated Price (₱)
@@ -340,11 +462,42 @@ const handlePrintRFQ = (rfqId) => {
                       id="estimatedPrice"
                       type="number"
                       min="0"
-                      value={estimatedPrice}
-                      onChange={handleEstimatedPriceChange}
+                      value={estimatedPrice[selectedItemId] || ""}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setEstimatedPrice((prev) => ({
+                          ...prev,
+                          [selectedItemId]: value,
+                        }));
+                      }}
                       required
                       className="w-full border rounded-md px-4 py-2 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
+                  </div>
+                )}
+
+                {showEstimatedPrice && selectedItemId === null && (
+                  <div className="space-y-4">
+                    {pr.details.map((detail) => (
+                      <div key={detail.id}>
+                        <label className="block mb-1 font-medium">
+                          {detail.item} - Estimated Price (₱)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={estimatedPrice[detail.id] || ""}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setEstimatedPrice((prev) => ({
+                              ...prev,
+                              [detail.id]: value,
+                            }));
+                          }}
+                          className="w-full border rounded-md px-4 py-2 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                        />
+                      </div>
+                    ))}
                   </div>
                 )}
 
@@ -365,6 +518,7 @@ const handlePrintRFQ = (rfqId) => {
                     : "Proceed"}
                 </button>
               </form>
+
             </div>
 
               {/* Supplier Modal */}
@@ -379,7 +533,18 @@ const handlePrintRFQ = (rfqId) => {
                     </button>
 
                     <h2 className="text-lg font-semibold mb-4">Select a Supplier</h2>
-
+                    <div className="mb-4 max-w-xs">
+                      <input
+                        type="text"
+                        placeholder="Filter suppliers..."
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setCurrentPage(1); // reset to page 1 when search changes
+                        }}
+                        className="w-full border border-gray-300 rounded-md px-4 py-2 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      />
+                    </div>
                     <div className="overflow-x-auto">
                       <table className="min-w-full text-sm text-gray-700">
                         <thead className="bg-gray-50 text-gray-600 uppercase text-xs tracking-wide">
@@ -406,21 +571,40 @@ const handlePrintRFQ = (rfqId) => {
                                 <td className="py-3 px-4 border-b">
                                   <button
                                     onClick={() => {
-                                      // Fallback unit price from the item if not entered yet
-                                      const finalBid = estimatedPrice.trim() || (pr.details?.find(d => d.id === selectedItemId)?.unit_price || "");
+                                      const priceValue = selectedItemId === null
+                                        ? ""
+                                        : (estimatedPrice[selectedItemId] || "");
 
-                                      addSelection(selectedItemId, supplier.id, finalBid); // <-- Call the addSelection function
+                                      const finalBid = priceValue.toString().trim() ||
+                                        (pr.details?.find(d => d.id === selectedItemId)?.unit_price || "");
+
+                                      if (selectedItemId === null) {
+                                        // Apply to all PR items
+                                        const updatedPrices = { ...estimatedPrice };
+                                        pr.details.forEach((detail) => {
+                                          const price = finalBid || detail.unit_price || "";
+                                          updatedPrices[detail.id] = price;
+                                          addSelection(detail.id, supplier.id, price);
+                                        });
+                                        setEstimatedPrice(updatedPrices);
+                                      } else {
+                                        // Apply to single item
+                                        addSelection(selectedItemId, supplier.id, finalBid);
+                                        setEstimatedPrice(prev => ({
+                                          ...prev,
+                                          [selectedItemId]: finalBid
+                                        }));
+                                      }
 
                                       setSelectedSupplierId(supplier.id);
-                                      setEstimatedPrice(finalBid); // Update UI state
                                       setShowEstimatedPrice(true);
                                       setShowModal(false);
                                     }}
-
                                     className="text-sm bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1 rounded-md"
                                   >
                                     Select
                                   </button>
+
                                 </td>
                               </tr>
                             ))
@@ -546,6 +730,51 @@ const handlePrintRFQ = (rfqId) => {
           </div>
         </div>
       </div>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className={dialogContent.type === "error" ? "text-red-600" : "text-green-600"}>
+              {dialogContent.title}
+            </DialogTitle>
+            <DialogDescription>
+              {dialogContent.message}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            {onConfirm ? (
+              <>
+                <button
+                  className="px-4 py-2 bg-gray-300 text-gray-800 rounded-md"
+                  onClick={() => {
+                    setDialogOpen(false);
+                    setOnConfirm(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-4 py-2 bg-green-600 text-white rounded-md"
+                  onClick={() => {
+                    onConfirm();
+                    setDialogOpen(false);
+                    setOnConfirm(null);
+                  }}
+                >
+                  Confirm
+                </button>
+              </>
+            ) : (
+              <button
+                className="px-4 py-2 bg-blue-600 text-white rounded-md"
+                onClick={() => setDialogOpen(false)}
+              >
+                Close
+              </button>
+            )}
+          </DialogFooter>
+
+        </DialogContent>
+      </Dialog>
     </ApproverLayout>
   );
 }

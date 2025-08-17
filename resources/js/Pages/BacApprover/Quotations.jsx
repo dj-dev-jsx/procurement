@@ -89,9 +89,18 @@ export default function Quotation({ purchaseRequests, filters = {} }) {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
-                {purchaseRequests.map((pr) =>
-                  pr.details.map((item, index) => (
-                    <tr key={`${pr.id}-${index}`} className="hover:bg-blue-50 text-center">
+                {purchaseRequests.map((pr) => {
+                  const items = pr.details.map((d) => d.item);
+                  const units = pr.details.map((d) => d.unit);
+                  const specs = pr.details.map((d) => d.specs);
+                  const quantities = pr.details.map((d) => d.quantity);
+                  const totalPrice = pr.details.reduce((sum, d) => sum + d.unit_price * d.quantity, 0);
+
+                  const displayItems = items.slice(0, 2).join(", ");
+                  const moreCount = items.length > 2 ? ` +${items.length - 2} more` : "";
+
+                  return (
+                    <tr key={pr.id} className="hover:bg-blue-50 text-center">
                       <td className="px-4 py-2 text-indigo-600 font-semibold">
                         <TooltipLink
                           to={route("bac_approver.abstract_of_quotations", pr.id)}
@@ -107,11 +116,21 @@ export default function Quotation({ purchaseRequests, filters = {} }) {
                           .join(" ")}
                       </td>
                       <td className="px-4 py-2 text-gray-700">{pr.division.division}</td>
-                      <td className="px-4 py-2 text-gray-700">{item.item}</td>
-                      <td className="px-4 py-2 text-gray-700">{item.specs}</td>
-                      <td className="px-4 py-2 text-gray-700">{item.unit}</td>
-                      <td className="px-4 py-2 text-gray-700">{item.quantity}</td>
-                      <td className="px-4 py-2 text-gray-700">{item.unit_price}</td>
+                      <td className="px-4 py-2 text-gray-700">{displayItems}{moreCount}</td>
+                      <td className="px-4 py-2 text-gray-700 text-left">
+                        <ul className="list-disc list-inside space-y-1">
+                          {pr.details.slice(0, 2).map((d, i) => (
+                            <li key={i}>{d.specs}</li>
+                          ))}
+                          {pr.details.length > 2 && (
+                            <li className="text-gray-500 italic">+{pr.details.length - 2} more</li>
+                          )}
+                        </ul>
+                      </td>
+
+                      <td className="px-4 py-2 text-gray-700">{units.slice(0, 2).join(", ")}{units.length > 2 ? ` +${units.length - 2} more` : ""}</td>
+                      <td className="px-4 py-2 text-gray-700">{quantities.slice(0, 2).join(", ")}{quantities.length > 2 ? ` +${quantities.length - 2} more` : ""}</td>
+                      <td className="px-4 py-2 text-gray-700">₱{totalPrice.toLocaleString()}</td>
                       <td className="px-4 py-2">
                         <a
                           href={route("bac_approver.quoted_price", pr.id)}
@@ -121,8 +140,8 @@ export default function Quotation({ purchaseRequests, filters = {} }) {
                         </a>
                       </td>
                     </tr>
-                  ))
-                )}
+                  );
+                })}
               </tbody>
             </table>
           </div>

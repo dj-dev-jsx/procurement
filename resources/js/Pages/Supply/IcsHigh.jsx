@@ -6,7 +6,7 @@ import { PenBoxIcon, PrinterCheckIcon } from 'lucide-react';
 import { useState } from 'react';
 
 
-export default function Ics({purchaseOrders, inventoryItems, ics, user}) {
+export default function IcsHigh({purchaseOrders, inventoryItems, ics, user}) {
     console.log("PO:", purchaseOrders);
     console.log("IV:",inventoryItems);
     console.log("ICS:",ics);
@@ -23,7 +23,7 @@ export default function Ics({purchaseOrders, inventoryItems, ics, user}) {
     )?.inventory;
   
   const getIcsRecords = (poId, inventoryID) => 
-    ics.find(i => i.po_id === poId && i.inventory_item_id === inventoryID && i.type === "low");
+    ics.find(i => i.po_id === poId && i.inventory_item_id === inventoryID && i.type === "high");
 
   return (
     <SupplyOfficerLayout header="Schools Divisions Office - Ilagan | Inventory Custodian Slip (ICS) - LOW">

@@ -77,9 +77,10 @@ Route::middleware(['auth', 'role:bac_approver'])->prefix('bac_approver')->group(
     Route::get('/quoted_price/{pr}', [ApproverController::class, 'quoted_price'])->name('bac_approver.quoted_price');
     Route::get('/for_quotations', [ApproverController::class, 'for_quotations'])->name('bac_approver.for_quotations');
     Route::post('/submit_quoted', [ApproverController::class, 'submit_quoted'])->name('bac_approver.submit_quoted');
+    Route::post('/submit_bulk_quoted', [ApproverController::class, 'submit_bulk_quoted'])->name('bac_approver.submit_bulk_quoted');
     Route::get('/abstract/{pr}', [ApproverController::class, 'abstract_of_quotations'])->name('bac_approver.abstract_of_quotations');
     Route::post('/bac-approver/mark-winner/{id}', [ApproverController::class, 'markWinner'])->name('bac_approver.mark_winner');
-    Route::get('/approver/print_aoq/{id}/{pr_detail_id}', [ApproverController::class, 'printAOQ'])->name('bac_approver.print_aoq');
+    Route::get('/approver/print_aoq/{id}/{pr_detail_id?}', [ApproverController::class, 'printAOQ'])->name('bac_approver.print_aoq');
 });
 
 // Supply Routes
@@ -99,8 +100,11 @@ Route::middleware(['auth', 'role:supply_officer'])->prefix('supply_officer')->gr
     Route::post('/store_ris', [SupplyController::class, 'store_ris'])->name('supply_officer.store_ris');
     Route::post('/store_ics', [SupplyController::class, 'store_ics'])->name('supply_officer.store_ics');
     Route::get('/ris_issuance', [SupplyController::class, 'ris_issuance'])->name('supply_officer.ris_issuance');
-    Route::get('/ics_issuance', [SupplyController::class, 'ics_issuance'])->name('supply_officer.ics_issuance');
+    Route::get('/ics_issuance_low', [SupplyController::class, 'ics_issuance_low'])->name('supply_officer.ics_issuance_low');
+    Route::get('/ics_issuance_high', [SupplyController::class, 'ics_issuance_high'])->name('supply_officer.ics_issuance_high');
     Route::get('/par_issuance', [SupplyController::class, 'par_issuance'])->name('supply_officer.par_issuance');
+    Route::get('/export_excel', [SupplyController::class, 'export_excel'])->name('supply_officer.export_excel');
+    Route::get('/export_excel_monthly', [SupplyController::class, 'export_excel_monthly'])->name('supply_officer.export_excel_monthly');
 });
 
 // Shared dashboard route

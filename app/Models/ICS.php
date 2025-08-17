@@ -12,7 +12,7 @@ class ICS extends Model
 
     protected $table = 'tbl_ics';
 
-    protected $fillable = ['inventory_item_id', 'po_id', 'ics_number', 'received_by', 'received_from', 'quantity', 'unit_cost', 'total_cost', 'remarks'];
+    protected $fillable = ['inventory_item_id', 'po_id', 'ics_number', 'received_by', 'received_from', 'quantity', 'unit_cost', 'total_cost', 'remarks', 'type'];
 
     public function inventoryItem()
     {
