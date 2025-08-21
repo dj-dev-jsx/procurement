@@ -38,7 +38,7 @@ function ProductTable({ products, handleProductSelect }) {
             <div className="flex items-center justify-between mb-3">
                 <h4 className="text-xl font-semibold text-gray-800">Available Products</h4>
                 <NavLink
-                    href="#"
+                     href={route("requester.create_product")}
                     className="text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition duration-200"
                 >
                     Add New Product

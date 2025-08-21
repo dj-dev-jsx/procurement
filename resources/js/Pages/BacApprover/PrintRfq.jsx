@@ -137,8 +137,10 @@ export default function PrintRFQ({ rfq, details }) {
       </tr>
       {details.map((item, idx) => (
         <tr key={idx}>
-          <td colSpan={3} className="border border-black px-2 py-3">{item.item || ""}</td>
-          <td className="border border-black px-2 py-1">{item.specs || ""}</td>
+          <td colSpan={3} className="border border-black px-2">{item.item || ""}</td>
+          <td className="border border-black px-2 text-nowrap">
+            {/* {item.specs || ""} */}
+            </td>
           <td className="border border-black px-2 py-1"></td>
           <td className="border border-black px-2 py-1">&nbsp;</td>
           <td className="border border-black px-2 py-1">&nbsp;</td>

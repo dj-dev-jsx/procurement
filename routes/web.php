@@ -53,6 +53,8 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 Route::middleware(['auth', 'role:requester'])->prefix('requester')->group(function () {
     Route::get('/', [RequesterController::class, 'dashboard'])->name('requester.dashboard');
     Route::get('/create', [RequesterController::class, 'create'])->name('requester.create');
+    Route::get('/create_product', [RequesterController::class, 'create_product'])->name('requester.create_product');
+    Route::post('/store_product', [RequesterController::class, 'store_product'])->name('requester.store_product');
     Route::post('/store', [RequesterController::class, 'store'])->name('requester.store');
     Route::get('/manage_requests', [RequesterController::class, 'manage_requests'])->name('requester.manage_requests');
     Route::get('/add_details/{pr}', [RequesterController::class, 'add_details'])->name('requester.add_details');
@@ -71,6 +73,7 @@ Route::middleware(['auth', 'role:bac_approver'])->prefix('bac_approver')->group(
     Route::get('/generate_rfq/{pr}', [ApproverController::class, 'generate_rfq'])->name('bac_approver.generate_rfq');
     Route::post('/store_rfq', [ApproverController::class, 'store_rfq'])->name('bac_approver.store_rfq');
     Route::get('/print_rfq/{pr}', [ApproverController::class, 'print_rfq'])->name('bac_approver.print_rfq');
+    Route::get('/print_rfq_per_item/{rfq}/{detail}', [ApproverController::class, 'print_rfq_per_item'])->name('bac_approver.print_rfq_per_item');
     Route::get('/for_review', [ApproverController::class, 'for_review'])->name('bac_approver.for_review');
     Route::get('/approve/{pr}', [ApproverController::class, 'approve'])->name('bac_approver.approve');
     Route::get('/show_details/{pr}', [ApproverController::class, 'show_details'])->name('bac_approver.show_details');
@@ -81,6 +84,7 @@ Route::middleware(['auth', 'role:bac_approver'])->prefix('bac_approver')->group(
     Route::get('/abstract/{pr}', [ApproverController::class, 'abstract_of_quotations'])->name('bac_approver.abstract_of_quotations');
     Route::post('/bac-approver/mark-winner/{id}', [ApproverController::class, 'markWinner'])->name('bac_approver.mark_winner');
     Route::get('/approver/print_aoq/{id}/{pr_detail_id?}', [ApproverController::class, 'printAOQ'])->name('bac_approver.print_aoq');
+    Route::post('/store_supplier', [ApproverController::class, 'store_supplier'])->name('bac_approver.store_supplier');
 });
 
 // Supply Routes

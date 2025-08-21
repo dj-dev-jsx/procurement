@@ -22,8 +22,9 @@ import {
 import { Button } from "@headlessui/react";
 
 
-export default function GenerateRFQ({ pr, suppliers, purchaseRequest, rfqs, flash }) {
-  const [selectedSupplierId, setSelectedSupplierId] = useState("");
+export default function GenerateRFQ({ pr, suppliers, purchaseRequest, rfqs,categories, flash }) {
+const [supplierList, setSupplierList] = useState(() => suppliers ?? []);
+const [selectedSupplierId, setSelectedSupplierId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showEstimatedPrice, setShowEstimatedPrice] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -34,6 +35,15 @@ export default function GenerateRFQ({ pr, suppliers, purchaseRequest, rfqs, flas
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [printMode, setPrintMode] = useState("combined");
   const [isWholePRMode, setIsWholePRMode] = useState(false);
+  
+  // --- NEW: State to toggle supplier category filtering ---
+  const [showAllSuppliers, setShowAllSuppliers] = useState(false);
+
+
+  useEffect(() => {
+    console.log("Full Purchase Request Prop:", JSON.stringify(pr, null, 2));
+  }, [pr]);
+
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogContent, setDialogContent] = useState({
@@ -48,15 +58,15 @@ export default function GenerateRFQ({ pr, suppliers, purchaseRequest, rfqs, flas
     setOnConfirm(() => onConfirm); // Save the callback
     setDialogOpen(true);
   };
-  const confirmSubmit = (e, detailId, supplierId) => {
-    e.preventDefault();
-    showDialog({
-      title: "Confirm Submission",
-      message: "Are you sure you want to submit this quotation?",
-      type: "confirm",
-      onConfirm: () => handleSubmit(detailId, supplierId),
-    });
-  };
+  const [showAddSupplierModal, setShowAddSupplierModal] = useState(false);
+  const [newSupplier, setNewSupplier] = useState({
+    representative_name: "",
+    company_name: "",
+    address: "",
+    tin_num: "",
+    category_id: ""
+  });
+
 
 const [estimatedPrice, setEstimatedPrice] = useState(() => {
   const initial = {};
@@ -65,19 +75,60 @@ const [estimatedPrice, setEstimatedPrice] = useState(() => {
       initial[detail.id] = detail.unit_price || "";
     });
   }
-  console.log("Initial estimatedPrice (in useState init):", initial);
   return initial;
 });
 
-useEffect(() => {
-  console.log("EstimatedPrice state changed:", estimatedPrice);
-}, [estimatedPrice]);
+
+const handleSubmitSupplier = async (e) => {
+  e.preventDefault();
+
+  try {
+    const response = await axios.post(route("bac_approver.store_supplier"), newSupplier);
+    const createdSupplier = response.data.supplier;
+
+    setSupplierList((prev) => [...prev, createdSupplier]);
+    setSelectedSupplierId(String(createdSupplier.id));
+
+    const newSupplierId = createdSupplier.id;
+    const priceValue = selectedItemId === null ? "" : (estimatedPrice[selectedItemId] || "");
+    const initialBid = priceValue.toString().trim() || (pr.details?.find(d => d.id === selectedItemId)?.unit_price || "");
+
+    if (selectedItemId !== null) {
+      addSelection(selectedItemId, newSupplierId, initialBid);
+    } else {
+      pr.details.forEach((detail) => {
+        const bid = detail.unit_price || "";
+        addSelection(detail.id, newSupplierId, bid);
+      });
+    }
+
+
+    setNewSupplier({
+      company_name: "",
+      address: "",
+      tin_num: "",
+      representative_name: "",
+      category_id: "",
+    });
+
+    setShowAddSupplierModal(false);
+    setShowModal(false);
+    setShowEstimatedPrice(true);
+
+  } catch (error) {
+    console.error("Error adding supplier", error);
+  }
+
+};
+
 
 
 const openModalForItem = (itemId) => {
   setSelectedItemId(itemId);
   setData((prev) => ({ ...prev, pr_detail_id: itemId }));
+  setShowAllSuppliers(false); // Reset the override to show recommended suppliers first
   setShowModal(true);
+
 
   const selectedItem = pr.details.find((detail) => detail.id === itemId);
   if (selectedItem) {
@@ -95,13 +146,12 @@ const openModalForItem = (itemId) => {
       pr_id: pr.id,
       user_id: purchaseRequest?.focal_person?.id ?? null,
       supplier_id: '',
-      estimated_bid: pr.details?.[0]?.unit_price || "", 
+      estimated_bid: pr.details?.[0]?.unit_price || "",
       selections: []
   });
   const addSelection = (itemId, supplierId, estimatedBid) => {
     setData((prevData) => {
       const existing = prevData.selections || [];
-      // Remove any existing selection for this item+supplier combo
       const filtered = existing.filter(
         (s) => !(s.pr_detail_id === itemId && s.supplier_id === supplierId)
       );
@@ -113,25 +163,35 @@ const openModalForItem = (itemId) => {
   };
 
 
+  // --- START: SUPPLIER FILTERING LOGIC WITH OVERRIDE ---
 
-  const handleChange = (e) => {
-    const selectedId = e.target.value;
-    setSelectedSupplierId(selectedId);
-    setData('supplier_id', selectedId);
+  const selectedItem = selectedItemId
+    ? pr.details.find(detail => detail.id === selectedItemId)
+    : null;
 
-    if (!estimatedPrice.trim()) {
-      const defaultUnitPrice = pr.details?.[0]?.unit_price || '';
-      setEstimatedPrice(defaultUnitPrice);
-      setData('estimated_bid', defaultUnitPrice);
-    }
+  const filterCategoryId = selectedItem?.product?.supplier_category_id;
+  const selectedItemCategoryName = selectedItem?.product?.supplier_category?.name;
 
-    setShowEstimatedPrice(false); 
-  };
-  const filteredSuppliers = suppliers.filter((supplier) =>
-    supplier.representative_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    supplier.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    supplier.address.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+
+  const filteredSuppliers = supplierList
+    .filter(supplier => {
+      // STAGE 1: Filter by Category (with an override)
+      // If the 'showAllSuppliers' toggle is ON, OR if we are in "Entire PR" mode, skip this filter.
+      if (showAllSuppliers || !filterCategoryId) {
+        return true;
+      }
+      // Otherwise, perform the category filter.
+      return supplier.category_id === filterCategoryId;
+    })
+    .filter(supplier =>
+      // STAGE 2: Filter by Text Search (always runs)
+      supplier.representative_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      supplier.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      supplier.address.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+  // --- END: SUPPLIER FILTERING LOGIC WITH OVERRIDE ---
+
 
   const indexOfLast = currentPage * itemsPerPage;
   const indexOfFirst = indexOfLast - itemsPerPage;
@@ -139,18 +199,6 @@ const openModalForItem = (itemId) => {
 
   const totalPages = Math.ceil(filteredSuppliers.length / itemsPerPage);
 
-
-
-  const handleEstimatedPriceChange = (e) => {
-    const value = e.target.value;
-    if (selectedItemId !== null) {
-      setEstimatedPrice(prev => ({
-        ...prev,
-        [selectedItemId]: value,
-      }));
-      setData('estimated_bid', value);
-    }
-  };
 
  const [submittedEntries, setSubmittedEntries] = useState([]);
 
@@ -162,7 +210,6 @@ function isSupplierAlreadySubmitted(itemId, supplierId) {
 const submitData = () => {
   setSubmitting(true);
 
-  // Build selections payload
   let selections = [];
 
   if (isWholePRMode) {
@@ -229,7 +276,6 @@ const submitData = () => {
 const handleSubmit = (e) => {
   e.preventDefault();
 
-  // Supplier selection check
   if (!selectedSupplierId && !isWholePRMode) {
     showDialog({
       title: "No Supplier Selected",
@@ -239,7 +285,6 @@ const handleSubmit = (e) => {
     return;
   }
 
-  // Price checks
   if (isWholePRMode) {
     const missingPrices = pr.details.filter(
       (item) => !estimatedPrice[item.id] || !estimatedPrice[item.id].trim()
@@ -254,7 +299,6 @@ const handleSubmit = (e) => {
     }
   } else {
     if (selectedItemId === null) {
-      // whole PR mode check (redundant, but keep for safety)
       const missingPrice = pr.details.some((detail) => {
         const price = estimatedPrice[detail.id];
         return !price || !price.toString().trim();
@@ -268,7 +312,6 @@ const handleSubmit = (e) => {
         return;
       }
     } else {
-      // per item check
       const price = estimatedPrice[selectedItemId];
       if (!price || !price.toString().trim()) {
         showDialog({
@@ -281,7 +324,6 @@ const handleSubmit = (e) => {
     }
   }
 
-  // Duplicate check in per-item mode
   if (
     !isWholePRMode &&
     isSupplierAlreadySubmitted(selectedItemId, selectedSupplierId)
@@ -294,7 +336,6 @@ const handleSubmit = (e) => {
     return;
   }
 
-  // Show confirm dialog
   showDialog({
     title: "Confirm Submission",
     message: "Are you sure you want to submit this quotation?",
@@ -302,30 +343,29 @@ const handleSubmit = (e) => {
     onConfirm: () => submitData(),
   });
 };
+const groupedItems = {};
 
+if (rfqs) {
+  rfqs.flatMap(rfq =>
+    rfq.details.map(detail => ({ ...detail, rfq_id: rfq.id }))
+  ).forEach(detail => {
+    const prDetailId = detail.pr_detail?.id;
+    if (!prDetailId) return;
 
+    if (!groupedItems[prDetailId]) {
+      groupedItems[prDetailId] = {
+        pr_detail_id: prDetailId,
+        item_name: detail.pr_detail?.product?.name || 'Unknown Item',
+        specs: detail.pr_detail?.product?.specs || '',
+        quotes: [],
+      };
+    }
 
+    groupedItems[prDetailId].quotes.push(detail);
+  });
+}
 
-
-const handlePrintRFQ = (rfqId) => {
-  if (printMode === "combined") {
-    window.open(route("bac_approver.print_rfq", rfqId), "_blank");
-  } else {
-    const rfq = rfqs.find((r) => r.id === rfqId);
-    rfq?.details.forEach((detail) => {
-      window.open(
-        route("bac_approver.print_rfq_per_item", {
-          rfq: rfqId,
-          detail: detail.pr_details_id,
-        }),
-        "_blank"
-      );
-    });
-  }
-};
-
-
-
+const itemGroups = Object.values(groupedItems);
 
   return (
     <ApproverLayout
@@ -350,7 +390,7 @@ const handlePrintRFQ = (rfqId) => {
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           {/* Left: Purchase Request Details */}
-          <div className="xl:col-span-1 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+          <div className="xl-col-span-1 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
             <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
               <FilePlus2 className="w-5 h-5 text-indigo-600" />
               Purchase Request Info
@@ -396,6 +436,7 @@ const handlePrintRFQ = (rfqId) => {
                     <button
                       onClick={() => {
                         setSelectedItemId(null); // null = means "whole PR"
+                        setShowAllSuppliers(true); // Show all by default for whole PR
                         setShowModal(true);
                       }}
                       className="inline-flex items-center px-4 py-2 bg-blue-950 hover:bg-blue-900 text-white rounded-md text-sm shadow-sm"
@@ -441,12 +482,12 @@ const handlePrintRFQ = (rfqId) => {
                 <div className="mb-4 text-sm text-gray-700 bg-indigo-50 border border-indigo-300 rounded p-3">
                   <strong>Selected Supplier:</strong>{" "}
                   {
-                    suppliers.find((s) => s.id === parseInt(selectedSupplierId))?.representative_name ||
+                    supplierList.find((s) => s.id === parseInt(selectedSupplierId))?.representative_name ||
                     "Unknown"
                   }{" "}
                   —{" "}
                   {
-                    suppliers.find((s) => s.id === parseInt(selectedSupplierId))?.company_name ||
+                    supplierList.find((s) => s.id === parseInt(selectedSupplierId))?.company_name ||
                     ""
                   }
                 </div>
@@ -532,19 +573,42 @@ const handlePrintRFQ = (rfqId) => {
                       ×
                     </button>
 
-                    <h2 className="text-lg font-semibold mb-4">Select a Supplier</h2>
-                    <div className="mb-4 max-w-xs">
-                      <input
-                        type="text"
-                        placeholder="Filter suppliers..."
-                        value={searchQuery}
-                        onChange={(e) => {
-                          setSearchQuery(e.target.value);
-                          setCurrentPage(1); // reset to page 1 when search changes
-                        }}
-                        className="w-full border border-gray-300 rounded-md px-4 py-2 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                      />
+                    <h2 className="text-lg font-semibold">
+                        {selectedItemCategoryName && !showAllSuppliers
+                          ? `Recommended Suppliers for ${selectedItemCategoryName}`
+                          : "Select a Supplier"}
+                    </h2>
+
+                    <div className="flex justify-between items-center mt-2 mb-4">
+                      <div className="max-w-xs">
+                          <input
+                            type="text"
+                            placeholder="Filter suppliers..."
+                            value={searchQuery}
+                            onChange={(e) => {
+                              setSearchQuery(e.target.value);
+                              setCurrentPage(1); // reset to page 1 when search changes
+                            }}
+                            className="w-full border border-gray-300 rounded-md px-4 py-2 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                          />
+                      </div>
+                      
+                      {/* --- NEW: Button to toggle filtering --- */}
+                      {selectedItemId && ( // Only show this button when selecting for a single item
+                          <button
+                              onClick={() => setShowAllSuppliers(prev => !prev)}
+                              className={`text-sm px-4 py-2 rounded-md transition-colors ${
+                                  showAllSuppliers
+                                  ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                                  : "bg-gray-200 text-gray-800 hover:bg-gray-300"
+                              }`}
+                          >
+                              {showAllSuppliers ? "Show Recommended" : "Show All Suppliers"}
+                          </button>
+                      )}
                     </div>
+
+
                     <div className="overflow-x-auto">
                       <table className="min-w-full text-sm text-gray-700">
                         <thead className="bg-gray-50 text-gray-600 uppercase text-xs tracking-wide">
@@ -552,7 +616,7 @@ const handlePrintRFQ = (rfqId) => {
                             <th className="py-3 px-4 text-left border-b">ID</th>
                             <th className="py-3 px-4 text-left border-b">Name</th>
                             <th className="py-3 px-4 text-left border-b">Company Name</th>
-                            <th className="py-3 px-4 text-left border-b">Item</th>
+                            <th className="py-3 px-4 text-left border-b">Supplier Category</th>
                             <th className="py-3 px-4 text-left border-b">Address</th>
                             <th className="py-3 px-4 text-left border-b">TIN</th>
                             <th className="py-3 px-4 text-left border-b">Action</th>
@@ -565,7 +629,7 @@ const handlePrintRFQ = (rfqId) => {
                                 <td className="py-3 px-4 border-b">{supplier.id}</td>
                                 <td className="py-3 px-4 border-b">{supplier.representative_name}</td>
                                 <td className="py-3 px-4 border-b">{supplier.company_name}</td>
-                                <td className="py-3 px-4 border-b">{supplier.item}</td>
+                                <td className="py-3 px-4 border-b">{supplier.category?.name}</td>
                                 <td className="py-3 px-4 border-b">{supplier.address}</td>
                                 <td className="py-3 px-4 border-b">{supplier.tin_num}</td>
                                 <td className="py-3 px-4 border-b">
@@ -611,13 +675,38 @@ const handlePrintRFQ = (rfqId) => {
                           ) : (
                             <tr>
                               <td colSpan="7" className="text-center py-6 text-gray-400 italic">
-                                No suppliers available.
+                                No suppliers available for this {showAllSuppliers ? "search" : "category"}.
                               </td>
                             </tr>
                           )}
                         </tbody>
                       </table>
                     </div>
+                  <div className="mt-6 border-t pt-4 flex justify-between">
+                      <button
+                        onClick={() => setShowAddSupplierModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-md text-sm shadow-sm"
+                      >
+                        ➕ Add New Supplier
+                      </button>
+
+                      {/* Confirm Selection */}
+                      <button
+                        onClick={() => {
+                          if (!selectedSupplierId) {
+                            Swal.fire("Oops!", "Please select a supplier first.", "warning");
+                            return;
+                          }
+                          setData("supplier_id", selectedSupplierId);
+                          setShowModal(false);
+                          Swal.fire("Saved!", "Supplier has been selected.", "success");
+                        }}
+                        className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm shadow-sm"
+                      >
+                        Confirm Selection
+                      </button>
+                    </div>
+
 
                     {/* Pagination */}
                     <div className="flex justify-between items-center mt-4">
@@ -643,93 +732,178 @@ const handlePrintRFQ = (rfqId) => {
                 </div>
               )}
 
-            {/* Quotation Info Table */}
-            <div className="mb-4 max-w-sm flex items-center gap-3">
-              <label className="font-medium text-sm text-gray-700">Print Mode:</label>
-              <select
-                value={printMode}
-                onChange={(e) => setPrintMode(e.target.value)}
-                className="border rounded px-3 py-2 shadow-sm focus:ring-2 focus:outline-none"
-              >
-                <option value="combined">All Items in One Document</option>
-                <option value="separate">One Document per Item</option>
-              </select>
-            </div>
 
-            {/* Quotation Info Table */}
-            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
-                <ScrollText className="w-5 h-5 text-indigo-600" />
-                Submitted RFQs / Quotations
-              </h2>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm text-gray-700">
-                  <thead className="bg-gray-50 text-gray-600 uppercase text-xs tracking-wide">
-                    <tr>
-                      <th className="py-3 px-4 text-left border-b">Supplier</th>
-                      <th className="py-3 px-4 text-left border-b">Item</th>
-                      <th className="py-3 px-4 text-left border-b">Estimated Bid (₱) per Unit</th>
-                      <th className="py-3 px-4 text-left border-b">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rfqs.length > 0 ? (
-                      rfqs.flatMap((rfq) =>
-                        rfq.details.map((detail, index) => (
-                          <tr key={`${rfq.id}-${index}`} className="hover:bg-indigo-50 transition-colors">
-                            <td className="py-3 px-4 border-b">{detail.supplier?.representative_name}</td>
-                            <td className="py-3 px-4 border-b">{detail.pr_detail?.product?.name}</td>
-                            <td className="py-3 px-4 border-b">
-                              {detail.estimated_bid
-                                ? `₱${Number(detail.estimated_bid).toLocaleString(undefined, {
+              <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+                <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
+                  <ScrollText className="w-5 h-5 text-indigo-600" />
+                  Submitted RFQs / Quotations
+                </h2>
+
+                {/* This button is now for the generic, supplier-less document */}
+                <div className="mb-4">
+                  <button
+                    onClick={() => {
+                      // This opens a print view for ALL items, but with NO supplier info.
+                      // Assumes you have a 'pr' prop with the purchase request id.
+                      window.open(route("bac_approver.print_rfq", pr.id), "_blank");
+                    }}
+                    className="text-sm text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md shadow-sm"
+                  >
+                    🖨️ Print Generic RFQ (All Items)
+                  </button>
+                </div>
+
+
+                <div className="space-y-6">
+                  {/* OUTER LOOP: Iterate over each item group we created */}
+                  {itemGroups.length > 0 ? (
+                    itemGroups.map((itemGroup) => (
+                      <div key={itemGroup.pr_detail_id} className="border rounded-lg overflow-hidden">
+                        {/* Item Header */}
+                        <div className="bg-gray-50 p-3 border-b">
+                          <h3 className="font-bold text-gray-800">{itemGroup.item_name}</h3>
+                          <p className="text-xs text-gray-600">{itemGroup.specs}</p>
+                        </div>
+
+                        {/* Nested Table for Suppliers */}
+                        <table className="min-w-full text-sm text-gray-700">
+                          <thead className="bg-gray-100 text-gray-600 uppercase text-xs">
+                            <tr>
+                              <th className="py-2 px-4 text-left">Supplier</th>
+                              <th className="py-2 px-4 text-left">Estimated Bid (₱)</th>
+                              <th className="py-2 px-4 text-left">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {/* INNER LOOP: Iterate over the quotes for this specific item */}
+                            {itemGroup.quotes.map((quote) => (
+                              <tr key={quote.id} className="hover:bg-indigo-50">
+                                <td className="py-2 px-4 border-t">
+                                  {quote.supplier?.representative_name || "N/A"}
+                                </td>
+                                <td className="py-2 px-4 border-t">
+                                  {`₱${Number(quote.estimated_bid).toLocaleString(undefined, {
                                     minimumFractionDigits: 2,
-                                  })}`
-                                : "₱0.00"}
-                            </td>
-                            <td className="py-3 px-4 border-b flex gap-2">
-                              <button
-                                onClick={() => {
-                                  if (printMode === "combined") {
-                                    handlePrintRFQ(rfq.id);
-                                  } else {
-                                    // print only this detail
-                                    window.open(
-                                      route("bac_approver.print_rfq_per_item", {
-                                        rfq: rfq.id,
-                                        detail: detail.pr_details_id,
-                                      }),
-                                      "_blank"
-                                    );
-                                  }
-                                }}
-                                className="text-sm text-white bg-green-600 hover:bg-green-700 px-3 py-1 rounded-md"
-                              >
-                                🖨️ Print
-                              </button>
-                              {printMode === "separate" && (
-                                <span className="text-xs italic text-gray-500 self-center">
-                                  (per item)
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))
-                      )
-                    ) : (
-                      <tr>
-                        <td colSpan="5" className="text-center py-6 text-gray-400 italic">
-                          No quotations submitted yet.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                                  })}`}
+                                </td>
+                                <td className="py-2 px-4 border-t">
+                                  <button
+                                    onClick={() => {
+                                      // This prints the document for THIS SPECIFIC item and THIS SPECIFIC supplier.
+                                      // It correctly uses the IDs from the 'quote' object.
+                                      window.open(
+                                        route("bac_approver.print_rfq_per_item", {
+                                          rfq: quote.rfq_id, // The parent RFQ id
+                                          detail: quote.id,    // The specific RFQ Detail id
+                                        }),
+                                        "_blank"
+                                      );
+                                    }}
+                                    className="text-sm text-white bg-green-600 hover:bg-green-700 px-3 py-1 rounded-md"
+                                  >
+                                    🖨️ Print
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ))
+                  ) : (
+                    // Display this message if no quotes have been submitted yet
+                    <div className="text-center py-6 text-gray-400 italic">
+                      No quotations submitted yet.
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+
 
           </div>
         </div>
       </div>
+        {showAddSupplierModal && (
+        <Dialog open={showAddSupplierModal} onOpenChange={setShowAddSupplierModal}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add New Supplier</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmitSupplier} className="space-y-4">
+              <input
+                type="text"
+                placeholder="Company Name"
+                className="w-full border rounded px-3 py-2"
+                value={newSupplier.company_name}
+                onChange={(e) =>
+                  setNewSupplier((prev) => ({ ...prev, company_name: e.target.value }))
+                }
+                required
+              />
+
+              <input
+                type="text"
+                placeholder="Address"
+                className="w-full border rounded px-3 py-2"
+                value={newSupplier.address}
+                onChange={(e) =>
+                  setNewSupplier((prev) => ({ ...prev, address: e.target.value }))
+                }
+              />
+
+              <input
+                type="text"
+                placeholder="TIN Number"
+                className="w-full border rounded px-3 py-2"
+                value={newSupplier.tin_num}
+                onChange={(e) =>
+                  setNewSupplier((prev) => ({ ...prev, tin_num: e.target.value }))
+                }
+              />
+
+              <input
+                type="text"
+                placeholder="Representative Name"
+                className="w-full border rounded px-3 py-2"
+                value={newSupplier.representative_name}
+                onChange={(e) =>
+                  setNewSupplier((prev) => ({
+                    ...prev,
+                    representative_name: e.target.value,
+                  }))
+                }
+                required
+              />
+
+              <select
+                className="w-full border rounded px-3 py-2"
+                value={newSupplier.category_id}
+                onChange={(e) =>
+                  setNewSupplier((prev) => ({ ...prev, category_id: e.target.value }))
+                }
+                required
+              >
+                <option value="">-- Select Category --</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="submit"
+                className="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-md"
+              >
+                Save Supplier
+              </button>
+            </form>
+
+          </DialogContent>
+        </Dialog>
+      )}
+
+
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -777,4 +951,5 @@ const handlePrintRFQ = (rfqId) => {
       </Dialog>
     </ApproverLayout>
   );
+
 }

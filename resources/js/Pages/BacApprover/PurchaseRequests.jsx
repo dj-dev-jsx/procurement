@@ -28,7 +28,7 @@ export default function PurchaseRequests({ purchaseRequests, filters = {} }) {
           <h2 className="text-lg font-bold text-gray-800">Purchase Requests</h2>
 
           {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
+          {/* <div className="flex flex-wrap items-center gap-2">
             <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm shadow">
               Monthly Report
             </button>
@@ -38,7 +38,7 @@ export default function PurchaseRequests({ purchaseRequests, filters = {} }) {
             <button className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md text-sm shadow">
               Export Excel
             </button>
-          </div>
+          </div> */}
         </div>
 
         {/* Filters */}

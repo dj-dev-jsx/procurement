@@ -13,7 +13,7 @@ export default function Approved({ purchaseRequests }) {
             Approved Purchase Requests
           </h2>
 
-          <div className="flex flex-wrap gap-2">
+          {/* <div className="flex flex-wrap gap-2">
             <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm shadow">
               Monthly Report
             </button>
@@ -23,7 +23,7 @@ export default function Approved({ purchaseRequests }) {
             <button className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md text-sm shadow">
               Export Excel
             </button>
-          </div>
+          </div> */}
         </div>
 
         {/* Filters */}

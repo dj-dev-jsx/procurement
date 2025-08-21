@@ -7,6 +7,7 @@ use App\Models\PurchaseRequest;
 use App\Models\RFQ;
 use App\Models\RFQDetail;
 use App\Models\Supplier;
+use App\Models\SupplierCategory;
 use App\Notifications\PurchaseRequestApproved;
 use Exception;
 use Illuminate\Http\Request;
@@ -156,12 +157,13 @@ public function store_rfq(Request $request)
 
 
 
-    public function generate_rfq($id)
+public function generate_rfq($id)
 {
-    $pr = PurchaseRequest::with(['details.product.unit', 'division', 'focal_person'])
+    $pr = PurchaseRequest::with(['details.product.unit', 'details.product.supplier_category', 'division', 'focal_person'])
         ->findOrFail($id);
 
-    $suppliers = Supplier::all();
+    $suppliers = Supplier::with('category')->get();
+    $categories = SupplierCategory::all();
 
     $rfqs = RFQ::with([
         'details.supplier',
@@ -189,12 +191,46 @@ public function store_rfq(Request $request)
                     'quantity' => $detail->quantity,
                     'unit_price' => $detail->unit_price,
                     'total_price' => $detail->quantity * $detail->unit_price,
+
+                    // THIS IS THE FIX: Pass the entire product object along with its relationships.
+                    'product' => $detail->product,
                 ];
             }),
         ],
         'suppliers' => $suppliers,
         'rfqs' => $rfqs,
+        'categories' => $categories
     ]);
+}
+public function store_supplier(Request $request)
+{
+    // ✅ Validate incoming request
+    $validated = $request->validate([
+        'company_name'        => 'required|string|max:255',
+        'address'             => 'nullable|string|max:255',
+        'tin_num'             => 'nullable|string|max:50',
+        'representative_name' => 'required|string|max:255',
+        'category_id'         => 'nullable|exists:tbl_supplier_categories,id',
+    ]);
+
+    try {
+        $supplier = Supplier::create($validated);
+
+        // reload with category relationship
+        $supplier = Supplier::with('category')->find($supplier->id);
+
+        return response()->json([
+            'message'  => 'Supplier created successfully.',
+            'supplier' => $supplier,
+        ], 201);
+
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'error'   => 'Something went wrong while saving supplier.',
+            'details' => $e->getMessage(), // remove in production
+        ], 500);
+    }
 }
 
 
@@ -218,6 +254,36 @@ public function store_rfq(Request $request)
         return Inertia::render('BacApprover/PrintRfq', [
             'rfq' => $rfq,
             'details' => $details,
+        ]);
+    }
+public function print_rfq_per_item($rfqId, $detailId)
+    {
+        // 1. Find the parent RFQ. This remains the same.
+        $rfq = RFQ::findOrFail($rfqId);
+
+        $rfqDetail = $rfq->details()
+                         ->with(['supplier', 'prDetail.product.unit']) // Eager load supplier and the original item info
+                         ->findOrFail($detailId);
+
+        $formattedDetail = [
+            // We get the data from the original Purchase Request Detail (`prDetail`)
+            'id' => $rfqDetail->prDetail->id,
+            'item' => $rfqDetail->prDetail->product->name ?? 'N/A',
+            'specs' => $rfqDetail->prDetail->product->specs ?? '',
+            'unit' => $rfqDetail->prDetail->product->unit->unit ?? 'N/A',
+            'quantity' => $rfqDetail->prDetail->quantity,
+            'unit_price' => $rfqDetail->prDetail->unit_price,
+            'total_price' => $rfqDetail->prDetail->quantity * $rfqDetail->prDetail->unit_price,
+
+            // We also include the specific bid amount from the RFQ Detail itself
+            'estimated_bid' => $rfqDetail->estimated_bid,
+        ];
+
+        // 4. Return the Inertia render with the correctly structured props.
+        return Inertia::render('BacApprover/PrintRfqPerItem', [
+            'rfq' => $rfq,
+            'detail' => $formattedDetail, // Pass the clean, formatted array
+            'supplier' => $rfqDetail->supplier, // Pass the full supplier object separately
         ]);
     }
 

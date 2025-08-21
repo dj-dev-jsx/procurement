@@ -71,6 +71,28 @@ class RequesterController extends Controller
             'products' => $products
         ]);
     }
+    public function create_product()
+    {
+        return Inertia::render('Requester/CreateProduct', [
+            'units' => \App\Models\Unit::all(),         // tbl_units
+            'categories' => \App\Models\Category::all() // tbl_categories
+        ]);
+    }
+    
+    public function store_product(Request $request){
+        $validated = $request->validate([
+        'name' => 'required|string|max:255',
+        'specs' => 'nullable|string',
+        'unit_id' => 'required|exists:tbl_units,id',
+        'category_id' => 'required|exists:tbl_categories,id',
+        'default_price' => 'nullable|numeric|min:0',
+    ]);
+
+    \App\Models\Products::create($validated);
+
+    return redirect()->route('requester.create') // go back to PR creation
+                     ->with('success', 'Product created successfully!');
+    }
 public function store(PurchaseRequestRequest $request)
 {   
     

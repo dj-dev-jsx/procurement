@@ -18,7 +18,10 @@ return new class extends Migration
             $table->string('address', 255);
             $table->string('tin_num', 100);
             $table->string('representative_name', 100);
-            $table->string('category', 100)->nullable();
+                $table->foreignId('category_id')
+                ->nullable()
+                ->constrained('tbl_supplier_categories')
+                ->nullOnDelete();
             $table->timestamps();
         });
     }
