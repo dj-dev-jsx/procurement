@@ -1,26 +1,19 @@
 import ApproverLayout from "@/Layouts/ApproverLayout";
 import { Head, router } from "@inertiajs/react";
+import { useState } from 'react';
 
 export default function AbstractOfQuotations({ rfq, groupedDetails = {} }) {
   const pr = rfq.purchase_request;
 
-  /**
-   * Generates the URL to print the AOQ.
-   * Can operate in 'full PR' mode or 'per-item' mode.
-   */
+  const [isPerItemMode, setIsPerItemMode] = useState(false);
+
   const handlePrintAOQ = (rfqId, prDetailId = null) => {
     const routeName = "bac_approver.print_aoq";
     const params = prDetailId ? { id: rfqId, pr_detail_id: prDetailId } : { id: rfqId };
     window.open(route(routeName, params), "_blank");
   };
 
-  /**
-   * Marks a supplier as the winner.
-   * If prDetailId is provided, it marks the winner for a single item.
-   * Otherwise, it marks the supplier as the winner for the entire PR.
-   */
   const handleMarkWinner = (rfqId, supplierId, prDetailId = null) => {
-    // Add a confirmation dialog before proceeding
     const confirmationMessage = prDetailId
       ? "Are you sure you want to mark this supplier as the winner for this item?"
       : "Are you sure you want to mark this supplier as the winner for the entire Purchase Request?";
@@ -31,37 +24,55 @@ export default function AbstractOfQuotations({ rfq, groupedDetails = {} }) {
       router.post(route(routeName, params), {
         supplier_id: supplierId
       }, {
-        preserveScroll: true // Keep the user's scroll position after the action
+        preserveScroll: true
       });
     }
   };
 
+  // --- CORRECTED DATA PROCESSING ---
 
-  // --- Data Processing: Determine Full-Bid Suppliers ---
+  // 1. Build a map of suppliers and their quotes.
+  const supplierMap = {}; // { supplierId: { supplier, detailIds, total } }
+  const winnerCounts = {}; // { supplierId: count_of_won_items }
 
-  // 1. Build a map of suppliers and the items they quoted for.
-  const supplierMap = {}; // supplierId => { supplier, detailIds: Set, total, isWinner }
   pr.details.forEach((detail) => {
     const quotesForItem = groupedDetails[detail.id] || [];
-
     quotesForItem.forEach((quote) => {
       const sid = quote.supplier.id;
       if (!supplierMap[sid]) {
-        supplierMap[sid] = { supplier: quote.supplier, detailIds: new Set(), total: 0, isWinner: false };
+        supplierMap[sid] = { supplier: quote.supplier, detailIds: new Set(), total: 0 };
+        winnerCounts[sid] = 0; // Initialize winner count for the supplier
       }
       supplierMap[sid].detailIds.add(detail.id);
       supplierMap[sid].total += parseFloat(quote.quoted_price || 0);
-      if (quote.is_winner) supplierMap[sid].isWinner = true;
+
+      if (quote.is_winner) {
+        winnerCounts[sid]++;
+      }
     });
   });
 
-  // 2. A "full-bid" supplier is one who quoted for every single item in the PR.
   const totalDetailsCount = pr.details.length;
-  const fullBidSuppliers = Object.values(supplierMap).filter(s => s.detailIds.size === totalDetailsCount);
 
-  // 3. Determine which mode to render.
+  // 2. Identify suppliers who quoted for all items.
+  const fullBidSuppliersData = Object.values(supplierMap).filter(s => s.detailIds.size === totalDetailsCount);
+
+  // 3. Correctly determine if a single supplier has won the entire PR.
+  const fullPrWinnerSupplierId = Object.keys(winnerCounts).find(
+    sid => winnerCounts[sid] === totalDetailsCount && totalDetailsCount > 0
+  );
+  const isFullPrWinnerDeclared = !!fullPrWinnerSupplierId;
+
+  // 4. Add the correct winner status to the full bid supplier list for rendering.
+  const fullBidSuppliers = fullBidSuppliersData.map(s => ({
+    ...s,
+    isWinner: s.supplier.id == fullPrWinnerSupplierId
+  }));
+
+
   const hasFullBids = fullBidSuppliers.length > 0;
-  const isFullPrWinnerDeclared = fullBidSuppliers.some(s => s.isWinner);
+  // Determine the effective mode based on state and data
+  const showPerItemView = isPerItemMode || !hasFullBids;
 
 
   return (
@@ -72,31 +83,44 @@ export default function AbstractOfQuotations({ rfq, groupedDetails = {} }) {
           Abstract of Quotations – PR #{pr.pr_number}
         </h2>
 
-        <div className="mb-4">
+        <div className="mb-4 flex justify-between items-center">
           <button
             onClick={() => window.history.back()}
             className="inline-flex items-center px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-md text-sm shadow-sm"
           >
             ← Back
           </button>
+
+          {hasFullBids && (
+            <div className="flex items-center">
+              <span className="mr-3 text-sm font-medium text-gray-900">Award by Entire PR</span>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isPerItemMode}
+                  onChange={() => setIsPerItemMode(!isPerItemMode)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+              <span className="ml-3 text-sm font-medium text-gray-900">Award by Item</span>
+            </div>
+          )}
         </div>
 
-        {/* ==================================================================== */}
-        {/* MODE 1: FULL PR AWARDING                                           */}
-        {/* Render this view if at least one supplier quoted for ALL items.    */}
-        {/* ==================================================================== */}
-        {hasFullBids ? (
+        {!showPerItemView ? (
+          // MODE 1: FULL PR AWARDING
           <div className="mb-10 border p-4 rounded-lg bg-white shadow-sm">
             <div className="flex justify-between items-start p-4">
-                <div>
-                    <h3 className="text-lg font-semibold mb-2">
-                        Comparison for Entire Purchase Request
-                    </h3>
-                    <div className="text-sm text-gray-700">
-                        <p><strong>Focal Person:</strong> {pr.focal_person.firstname} {pr.focal_person.lastname}</p>
-                        <p><strong>Division:</strong> {pr.division.division}</p>
-                    </div>
+              <div>
+                <h3 className="text-lg font-semibold mb-2">
+                  Comparison for Entire Purchase Request
+                </h3>
+                <div className="text-sm text-gray-700">
+                  <p><strong>Focal Person:</strong> {pr.focal_person.firstname} {pr.focal_person.lastname}</p>
+                  <p><strong>Division:</strong> {pr.division.division}</p>
                 </div>
+              </div>
               <button
                 onClick={() => handlePrintAOQ(rfq.id)}
                 className="text-sm text-white bg-green-600 hover:bg-green-700 px-3 py-2 rounded-md h-fit"
@@ -125,7 +149,6 @@ export default function AbstractOfQuotations({ rfq, groupedDetails = {} }) {
                     </td>
                     <td className="border px-4 py-2 text-center font-bold text-green-600">{sEntry.isWinner ? "✔️" : ""}</td>
                     <td className="border px-4 py-2 text-center">
-                      {/* Show the button only if NO winner has been declared for the full PR yet */}
                       {!isFullPrWinnerDeclared && (
                         <button
                           onClick={() => handleMarkWinner(rfq.id, sEntry.supplier.id)}
@@ -141,15 +164,12 @@ export default function AbstractOfQuotations({ rfq, groupedDetails = {} }) {
             </table>
           </div>
         ) : (
-          /* ==================================================================== */
-          /* MODE 2: PER-ITEM AWARDING                                          */
-          /* Render this view if NO supplier quoted for all items.              */
-          /* ==================================================================== */
+          // MODE 2: PER-ITEM AWARDING
           pr.details.map((detail) => {
             const quotesForItem = (groupedDetails[detail.id] || [])
               .slice()
               .sort((a, b) => parseFloat(a.quoted_price) - parseFloat(b.quoted_price));
-            
+
             const isItemWinnerDeclared = quotesForItem.some(q => q.is_winner);
 
             return (
@@ -161,8 +181,8 @@ export default function AbstractOfQuotations({ rfq, groupedDetails = {} }) {
                     </h3>
                     <p className="text-sm text-gray-500 mb-2">{detail.specs}</p>
                     <div className="text-sm text-gray-700">
-                        <p><strong>Focal Person:</strong> {pr.focal_person.firstname} {pr.focal_person.lastname}</p>
-                        <p><strong>Division:</strong> {pr.division.division}</p>
+                      <p><strong>Focal Person:</strong> {pr.focal_person.firstname} {pr.focal_person.lastname}</p>
+                      <p><strong>Division:</strong> {pr.division.division}</p>
                     </div>
                   </div>
                   <button
@@ -193,7 +213,6 @@ export default function AbstractOfQuotations({ rfq, groupedDetails = {} }) {
                         </td>
                         <td className="border px-4 py-2 text-center font-bold text-green-600">{rfqDetail.is_winner ? "✔️" : ""}</td>
                         <td className="border px-4 py-2 text-center">
-                          {/* Show button only if NO winner has been declared for THIS ITEM yet */}
                           {!isItemWinnerDeclared && (
                             <button
                               onClick={() => handleMarkWinner(rfq.id, rfqDetail.supplier.id, detail.id)}

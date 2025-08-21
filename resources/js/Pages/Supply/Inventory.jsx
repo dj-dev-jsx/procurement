@@ -143,7 +143,7 @@ const getUniqueInventory = (inventory) => {
                         </span>
                       ) : (
                         <a
-                          href={route("supply_officer.issuance", inv.po_id)}
+                          href={route("supply_officer.issuance", { po_id: inv.po_id, inventory_id: inv.id })}
                           className="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 transition flex items-center justify-center gap-1"
                         >
                           <PackageCheck size={16} /> Issue Item

@@ -1,13 +1,32 @@
 import SupplyOfficerLayout from "@/Layouts/SupplyOfficerLayout";
-import { Head, useForm } from "@inertiajs/react";
-import { ClipboardCheck, PrinterCheckIcon } from "lucide-react";
-import React, { useEffect } from "react";
+import { Head, useForm, usePage } from "@inertiajs/react";
+import { CheckCircle2, ClipboardCheck, PrinterCheckIcon } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 export default function PurchaseOrdersTable({ purchaseOrders, filters }) {
+  const { props } = usePage();
   const { data, setData, get } = useForm({
     search: filters.search || "",
     division: filters.division || "",
   });
+  const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+useEffect(() => {
+    const message = props.flash.success;
+    if (message) {
+      setSuccessMessage(message);
+      setIsSuccessDialogOpen(true);
+    }
+  }, [props.flash.success]); 
 
   // Debounced filter handling
   useEffect(() => {
@@ -107,7 +126,7 @@ export default function PurchaseOrdersTable({ purchaseOrders, filters }) {
                       className="inline-flex items-center gap-2 px-4 py-2 bg-gray-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 transition"
                       target="_blank"
                     >
-                      <PrinterCheckIcon size={16} /> Print
+                      <PrinterCheckIcon size={16} /> Print PO
                     </a>
                   </td>
                 </tr>
@@ -133,6 +152,24 @@ export default function PurchaseOrdersTable({ purchaseOrders, filters }) {
           />
         ))}
       </div>
+      <Dialog open={isSuccessDialogOpen} onOpenChange={setIsSuccessDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              <CheckCircle2 size={24} />
+              Success!
+            </DialogTitle>
+            <DialogDescription className="pt-4 text-base">
+              {successMessage}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setIsSuccessDialogOpen(false)}>
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SupplyOfficerLayout>
   );
 }

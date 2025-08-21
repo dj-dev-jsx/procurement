@@ -3,6 +3,7 @@ import { Head, useForm } from "@inertiajs/react";
 import { FileText, SendHorizonal } from "lucide-react"; // Optional icons
 
 export default function RisForm({ purchaseOrder, inventoryItem, user }) {
+    console.log("running");
     
     const detail = purchaseOrder.details?.[0];
     const pr = detail?.pr_detail?.purchase_request;

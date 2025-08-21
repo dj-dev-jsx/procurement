@@ -1,130 +1,208 @@
 import { Head, useForm } from "@inertiajs/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import SupplyOfficerLayout from "@/Layouts/SupplyOfficerLayout";
+import { AlertTriangle } from "lucide-react";
 
-export default function CreatePurchaseOrder({ pr, rfq, suppliers, winners, supplier, supplierQuotedPrices }) {
-  const [selectedSupplierId, setSelectedSupplierId] = useState(supplier?.id ?? "");
+// 1. Import Shadcn Dialog components and Button
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
-  const initialItems = winners.map((item) => {
-    const unit_price = supplierQuotedPrices[selectedSupplierId]?.[item.pr_detail_id] ?? 0;
-    const total_price = item.quantity * unit_price;
-    return { ...item, unit_price, total_price };
-  });
+export default function CreatePurchaseOrder({ pr, rfq, suppliers, winners, supplierQuotedPrices }) {
+  // --- 1. DATA PREPARATION (No changes here) ---
+  const winningSupplierIds = useMemo(() => [...new Set(winners.map(w => w.supplier_id))], [winners]);
+  const winningSuppliers = useMemo(() => suppliers.filter(s => winningSupplierIds.includes(s.id)), [suppliers, winningSupplierIds]);
+  const otherSuppliers = useMemo(() => suppliers.filter(s => !winningSupplierIds.includes(s.id)), [suppliers, winningSupplierIds]);
+  const initialSupplierId = winningSuppliers.length > 0 ? winningSuppliers[0].id : "";
+
+  const getItemsForSupplier = (supplierId) => {
+    if (!supplierId) return [];
+    return pr.details.map((prDetail) => {
+      const hasQuote = supplierQuotedPrices[supplierId]?.[prDetail.id] !== undefined;
+      const unit_price = hasQuote ? supplierQuotedPrices[supplierId][prDetail.id] : prDetail.unit_price;
+      const quantityAsNumber = parseFloat(prDetail.quantity || 0);
+      const unitPriceAsNumber = parseFloat(unit_price || 0);
+      const total_price = quantityAsNumber * unitPriceAsNumber;
+      return {
+        pr_detail_id: prDetail.id,
+        item: prDetail.product.name,
+        specs: prDetail.product.specs,
+        unit: prDetail.product.unit.unit,
+        quantity: quantityAsNumber,
+        unit_price: unitPriceAsNumber,
+        total_price,
+        priceSource: hasQuote ? 'Quoted Price' : 'Default Price (ABC)',
+      };
+    });
+  };
+
+  // --- 2. STATE MANAGEMENT ---
+  const [selectedSupplierId, setSelectedSupplierId] = useState(initialSupplierId);
+  // Add state to manage the confirmation dialog
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
 
   const { data, setData, post, processing, errors } = useForm({
     rfq_id: rfq.id,
-    supplier_id: selectedSupplierId,
-    items: initialItems,
+    supplier_id: initialSupplierId,
+    items: getItemsForSupplier(initialSupplierId),
   });
 
-  // Update unit prices and totals when supplier changes
   useEffect(() => {
-    const updatedItems = winners.map((item) => {
-      const unit_price = supplierQuotedPrices[selectedSupplierId]?.[item.pr_detail_id] ?? 0;
-      const total_price = item.quantity * unit_price;
-      return { ...item, unit_price, total_price };
-    });
-
-    setData("supplier_id", selectedSupplierId);
-    setData("items", updatedItems);
+    if (selectedSupplierId !== data.supplier_id) {
+      setData({
+        rfq_id: rfq.id,
+        supplier_id: selectedSupplierId,
+        items: getItemsForSupplier(selectedSupplierId),
+      });
+    }
   }, [selectedSupplierId]);
 
   const handleChange = (index, field, value) => {
     const updatedItems = [...data.items];
-    updatedItems[index][field] = field === "quantity" || field === "unit_price" ? Number(value) : value;
-
-    updatedItems[index].total_price =
-      Number(updatedItems[index].quantity) * Number(updatedItems[index].unit_price);
-
+    const numericValue = Number(value) >= 0 ? Number(value) : 0;
+    updatedItems[index][field] = numericValue;
+    updatedItems[index].total_price = Number(updatedItems[index].quantity) * Number(updatedItems[index].unit_price);
     setData("items", updatedItems);
   };
 
+  // 3. This function now opens the dialog instead of submitting directly
   const handleSubmit = (e) => {
     e.preventDefault();
-    post(route("supply_officer.store_po"));
+    setIsConfirmDialogOpen(true);
+  };
+
+  // 4. This new function will be called when the user confirms in the dialog
+  const handleConfirmSubmit = () => {
+    post(route("supply_officer.store_po"), {
+      onFinish: () => {
+        setIsConfirmDialogOpen(false); // Close dialog after submission
+      },
+    });
   };
 
   return (
     <SupplyOfficerLayout header={"Schools Divisions Office - Ilagan | Create Purchase Order"}>
-      <Head title="Create Purchase Order" />
-
+      <Head title={`Create PO for PR #${pr.pr_number}`} />
       <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow mx-auto max-w-6xl">
         <h2 className="text-2xl font-bold mb-6">Create PO for PR #{pr.pr_number}</h2>
 
-        {/* Supplier Selector */}
+        {/* --- SUPPLIER SELECTOR --- */}
         <div className="mb-6">
-          <label className="block text-sm font-semibold text-gray-700 mb-1">Supplier</label>
-          <select
-            value={selectedSupplierId}
-            onChange={(e) => setSelectedSupplierId(parseInt(e.target.value))}
-            className="w-auto border border-gray-300 rounded px-auto py-2"
-          >
-            <option value="">-- Select Supplier --</option>
-            {suppliers.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.company_name}
-              </option>
-            ))}
-          </select>
-          {errors.supplier_id && <p className="text-red-500 text-sm mt-1">{errors.supplier_id}</p>}
+            <label htmlFor="supplier-select" className="block text-sm font-semibold text-gray-700 mb-1">
+                Supplier
+            </label>
+            <select
+                id="supplier-select"
+                value={selectedSupplierId}
+                onChange={(e) => setSelectedSupplierId(e.target.value ? parseInt(e.target.value) : "")}
+                className="w-full md:w-1/2 border border-gray-300 rounded px-3 py-2 bg-white"
+                required
+            >
+                <option value="">-- Select a supplier --</option>
+                {winningSuppliers.length > 0 && (
+                <optgroup label="Winning Supplier(s)">
+                    {winningSuppliers.map((s) => <option key={s.id} value={s.id}>{s.company_name}</option>)}
+                </optgroup>
+                )}
+                {otherSuppliers.length > 0 && (
+                <optgroup label="Other Bidders">
+                    {otherSuppliers.map((s) => <option key={s.id} value={s.id}>{s.company_name}</option>)}
+                </optgroup>
+                )}
+            </select>
         </div>
 
-        {/* Item Table */}
+        {/* --- ITEM TABLE --- (No changes here) */}
         <div className="overflow-x-auto">
-          <table className="min-w-full table-auto border border-gray-300 text-sm">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="border px-4 py-2 text-left">Item</th>
-                <th className="border px-4 py-2 text-left">Specs</th>
-                <th className="border px-4 py-2 text-center">Unit</th>
-                <th className="border px-4 py-2 text-right">Quantity</th>
-                <th className="border px-4 py-2 text-right">Unit Price</th>
-                <th className="border px-4 py-2 text-right">Total</th>
+          <table className="min-w-full table-auto border-separate border-spacing-0 text-sm">
+            {/* ... table head and body ... */}
+             <thead className="bg-gray-100">
+               <tr>
+                <th className="border-y border-l px-4 py-2 text-left">Item</th>
+                <th className="border-y px-4 py-2 text-left">Specs</th>
+                <th className="border-y px-4 py-2 text-center">Unit</th>
+                <th className="border-y px-4 py-2 text-right">Quantity</th>
+                <th className="border-y px-4 py-2 text-right">Unit Price</th>
+                <th className="border-y border-r px-4 py-2 text-right">Total</th>
               </tr>
             </thead>
             <tbody>
               {data.items.map((item, index) => (
-                <tr key={index} className="hover:bg-gray-50">
-                  <td className="border px-4 py-2">{item.item}</td>
-                  <td className="border px-4 py-2">{item.specs}</td>
-                  <td className="border px-4 py-2 text-center">{item.unit}</td>
-                  <td className="border px-4 py-2 text-right">
+                <tr key={item.pr_detail_id} className="hover:bg-gray-50">
+                  <td className="border-b border-l px-4 py-2">{item.item}</td>
+                  <td className="border-b px-4 py-2 text-gray-600">{item.specs}</td>
+                  <td className="border-b px-4 py-2 text-center">{item.unit}</td>
+                  <td className="border-b px-4 py-2 text-right">
                     <input
-                      type="number"
-                      min="0"
-                      value={item.quantity}
+                      type="number" min="0" value={item.quantity}
                       onChange={(e) => handleChange(index, "quantity", e.target.value)}
                       className="w-20 border rounded px-2 py-1 text-right"
                     />
                   </td>
-                  <td className="border px-4 py-2 text-right">
+                  <td className="border-b px-4 py-2 text-right">
                     <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item.unit_price}
+                      type="number" min="0" step="0.01" value={item.unit_price}
                       onChange={(e) => handleChange(index, "unit_price", e.target.value)}
                       className="w-24 border rounded px-2 py-1 text-right"
                     />
+                     <div className={`text-xs mt-1 ${item.priceSource === 'Quoted Price' ? 'text-green-600' : 'text-gray-500'}`}>
+                      {item.priceSource}
+                    </div>
                   </td>
-                  <td className="border px-4 py-2 text-right">
-                    ₱{Number(item.total_price).toFixed(2)}
+                  <td className="border-b border-r px-4 py-2 text-right font-medium">
+                    ₱{Number(item.total_price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-
-        {/* Submit */}
-        <button
+        
+        {/* The submit button now triggers the dialog */}
+        <Button
           type="submit"
-          disabled={processing}
-          className="mt-6 bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-semibold"
+          disabled={processing || !selectedSupplierId}
+          className="mt-6"
         >
           {processing ? "Submitting..." : "Submit Purchase Order"}
-        </button>
+        </Button>
       </form>
+
+      {/* 5. Add the Confirmation Dialog component */}
+      <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="text-yellow-500" />
+              Confirm Submission
+            </DialogTitle>
+            <DialogDescription className="pt-4 text-base">
+              Are you sure you want to create this Purchase Order? Please review the items and prices before proceeding.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsConfirmDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmSubmit}
+              disabled={processing}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {processing ? "Submitting..." : "Confirm & Create PO"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SupplyOfficerLayout>
   );
 }

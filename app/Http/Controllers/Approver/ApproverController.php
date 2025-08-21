@@ -402,7 +402,7 @@ public function submit_bulk_quoted(Request $request)
         );
     }
 
-    return response()->json(['message' => 'All quoted prices submitted successfully.']);
+    return back()->with('success', 'All quoted prices submitted successfully.');
 }
 
 
@@ -425,36 +425,51 @@ public function submit_bulk_quoted(Request $request)
             'groupedDetails' => $rfqDetails,
         ]);
     }
-    public function markWinner($id, $pr_detail_id = null)
-{
+    public function markWinner(Request $request, $id, $pr_detail_id = null)
+    {
+    $supplierId = $request->input('supplier_id');
+
+    // Validate that a supplier_id was actually sent with the request.
+    if (!$supplierId) {
+        return back()->with('error', 'A supplier was not specified.');
+    }
+
     if ($pr_detail_id) {
-        // Per-item winner
-        $rfqDetail = RFQDetail::where('rfq_id', $id)
-            ->where('pr_details_id', $pr_detail_id)
-            ->firstOrFail();
+        // --- PER-ITEM WINNER LOGIC ---
+        // This block will now execute correctly.
 
-        // Unmark all previous winners for this PR Detail
-        RFQDetail::where('pr_details_id', $pr_detail_id)
-            ->update(['is_winner' => false]);
-
-        // Mark this one as winner
-        $rfqDetail->is_winner = true;
-        $rfqDetail->save();
-    } else {
-        // Full PR mode — mark entire supplier as winner
-        $supplierId = request()->input('supplier_id');
-
-        // Unmark all winners for this RFQ
+        // First, unmark any previous winner for this specific item on this RFQ.
         RFQDetail::where('rfq_id', $id)
+            ->where('pr_details_id', $pr_detail_id)
             ->update(['is_winner' => false]);
 
-        // Mark all items for this supplier
+        // Now, find the specific quote for the item from the specified supplier.
+        $quoteToMark = RFQDetail::where('rfq_id', $id)
+            ->where('pr_details_id', $pr_detail_id)
+            ->where('supplier_id', $supplierId)
+            ->first();
+
+        // Only if we find that exact quote, mark it as the winner.
+        if ($quoteToMark) {
+            $quoteToMark->is_winner = true;
+            $quoteToMark->save();
+        } else {
+            return back()->with('error', 'Could not find the specified quote to mark as winner.');
+        }
+
+    } else {
+        // --- FULL PR WINNER LOGIC ---
+
+        // Unmark all winners for the entire RFQ to reset the state.
+        RFQDetail::where('rfq_id', $id)->update(['is_winner' => false]);
+
+        // Mark all items from the chosen supplier as winners.
         RFQDetail::where('rfq_id', $id)
             ->where('supplier_id', $supplierId)
             ->update(['is_winner' => true]);
     }
 
-    return back()->with('success', 'Supplier marked as winner.');
+    return back()->with('success', 'Winner has been successfully updated.');
 }
 public function printAOQ($id, $pr_detail_id = null)
 {

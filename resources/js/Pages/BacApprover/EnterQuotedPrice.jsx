@@ -3,22 +3,18 @@ import {
   ScrollText,
   FilePlus2,
   CheckCircle2,
-  Users2,
 } from "lucide-react";
 import ApproverLayout from "@/Layouts/ApproverLayout";
 import { Head, useForm } from "@inertiajs/react";
-import Swal from 'sweetalert2';
 import {
   Dialog,
-  DialogTrigger,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/components/ui/dialog"
-import { Button } from "@headlessui/react";
-
+} from "@/components/ui/dialog";
+import { Button } from "@headlessui/react"; // Assuming this is your preferred button, or use "@/components/ui/button"
 
 export default function EnterQuotedPrices({ pr, suppliers, rfqs, purchaseRequest, rfq_details }) {
   const [submittingId, setSubmittingId] = useState(null);
@@ -27,15 +23,25 @@ export default function EnterQuotedPrices({ pr, suppliers, rfqs, purchaseRequest
   const [dialogContent, setDialogContent] = useState({
     title: "",
     message: "",
-    type: "success", // or "error"
+    type: "success", // can be "success", "error", or "confirm"
   });
-  const [onConfirm, setOnConfirm] = useState(null);
+  // This state will hold the function to execute when the user confirms an action
+  const [onConfirmAction, setOnConfirmAction] = useState(null);
 
+  /**
+   * Triggers the feedback/confirmation dialog.
+   * @param {object} params - The dialog parameters.
+   * @param {string} params.title - The title of the dialog.
+   * @param {string} params.message - The main message of the dialog.
+   * @param {string} params.type - The type of dialog ('success', 'error', 'confirm').
+   * @param {Function} [params.onConfirm] - The function to call on confirmation.
+   */
   const showDialog = ({ title, message, type, onConfirm = null }) => {
     setDialogContent({ title, message, type });
-    setOnConfirm(() => onConfirm); // Save the callback
+    setOnConfirmAction(() => onConfirm); // Use a more descriptive name for the state setter
     setDialogOpen(true);
   };
+
   const confirmSubmit = (e, detailId, supplierId) => {
     e.preventDefault();
     showDialog({
@@ -45,8 +51,6 @@ export default function EnterQuotedPrices({ pr, suppliers, rfqs, purchaseRequest
       onConfirm: () => handleSubmit(detailId, supplierId),
     });
   };
-
-
 
   const getQuotedPrice = (detailId, supplierId) => {
     const quoted = rfq_details.find(
@@ -61,10 +65,10 @@ export default function EnterQuotedPrices({ pr, suppliers, rfqs, purchaseRequest
     quoted_price: "",
     supplier_id: "",
   });
+
   const bulkForm = useForm({
     quotes: [],
   });
-
 
   const handlePriceChange = (value, detailId, supplierId) => {
     const key = `${detailId}-${supplierId}`;
@@ -103,6 +107,7 @@ export default function EnterQuotedPrices({ pr, suppliers, rfqs, purchaseRequest
       onSuccess: () => {
         setQuotedPrices((prev) => ({ ...prev, [key]: "" }));
         setSubmittingId(null);
+        // This is the feedback dialog on success
         showDialog({
           title: "Submitted!",
           message: "Quoted price submitted successfully.",
@@ -111,6 +116,7 @@ export default function EnterQuotedPrices({ pr, suppliers, rfqs, purchaseRequest
       },
       onError: (errors) => {
         setSubmittingId(null);
+        // This is the feedback dialog on error
         showDialog({
           title: "Oops!",
           message: errors?.quoted_price || "Something went wrong while submitting.",
@@ -120,16 +126,16 @@ export default function EnterQuotedPrices({ pr, suppliers, rfqs, purchaseRequest
     });
   };
 
-const confirmSubmitAll = () => {
-  showDialog({
-    title: "Confirm Bulk Submission",
-    message: "Are you sure you want to submit all quoted prices?",
-    type: "confirm",
-    onConfirm: () => handleSubmitAll(),
-  });
-};
-  const handleSubmitAll = () => {
+  const confirmSubmitAll = () => {
+    showDialog({
+      title: "Confirm Bulk Submission",
+      message: "Are you sure you want to submit all quoted prices?",
+      type: "confirm",
+      onConfirm: () => handleSubmitAll(),
+    });
+  };
 
+  const handleSubmitAll = () => {
     const entries = Object.entries(quotedPrices)
       .filter(([_, value]) => value !== "")
       .map(([key, value]) => {
@@ -139,9 +145,7 @@ const confirmSubmitAll = () => {
             rfq.pr_details_id == detailId &&
             rfq.supplier_id == supplierId
         );
-
         if (!rfqDetail) return null;
-
         return {
           rfq_id: rfqDetail.rfq_id,
           pr_details_id: detailId,
@@ -151,11 +155,16 @@ const confirmSubmitAll = () => {
       })
       .filter((entry) => entry !== null);
 
-    if (entries.length === 0) return;
+    if (entries.length === 0) {
+      showDialog({
+        title: "No Prices to Submit",
+        message: "Please enter at least one quoted price before submitting all.",
+        type: "error",
+      });
+      return;
+    }
 
     setSubmittingId("all");
-
-
     bulkForm.data.quotes = entries;
 
     bulkForm.post(route("bac_approver.submit_bulk_quoted"), {
@@ -168,9 +177,8 @@ const confirmSubmitAll = () => {
           });
           return updated;
         });
-
         setSubmittingId(null);
-
+        // This is the feedback dialog on bulk success
         showDialog({
           title: "All Quoted Prices Submitted!",
           message: "All prices have been submitted successfully.",
@@ -180,9 +188,10 @@ const confirmSubmitAll = () => {
       onError: (errors) => {
         console.error("❌ Errors:", errors);
         setSubmittingId(null);
+        // This is the feedback dialog on bulk error
         showDialog({
-          title: "Submission failed",
-          message: "Please check your inputs.",
+          title: "Submission Failed",
+          message: "Please check your inputs and try again.",
           type: "error",
         });
       }
@@ -193,6 +202,7 @@ const confirmSubmitAll = () => {
     <ApproverLayout>
       <Head title="Enter Quoted Prices" />
       <div className="mx-auto px-6 py-10">
+        {/* ... your existing JSX for the page layout ... */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
             <ScrollText className="w-8 h-8 text-indigo-700" />
@@ -201,7 +211,7 @@ const confirmSubmitAll = () => {
         </div>
         <div className="mb-4">
           <button
-            onClick={() => window.history.back()} // or use window.history.back()
+            onClick={() => window.history.back()}
             className="inline-flex items-center px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-md text-sm shadow-sm"
           >
             ← Back
@@ -209,7 +219,6 @@ const confirmSubmitAll = () => {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-          {/* PR Info Panel */}
           <div className="bg-white border border-gray-200 rounded-xl p-6 shadow">
             <h2 className="text-2xl font-semibold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
               <FilePlus2 className="w-5 h-5 text-indigo-600" />
@@ -224,11 +233,10 @@ const confirmSubmitAll = () => {
               <div><strong>Focal Person:</strong> {purchaseRequest?.focal_person?.firstname}</div>
             </div>
           </div>
-
-          {/* Quoted Prices Section */}
           <div className="xl:col-span-2 space-y-10">
             {pr.details.map((detail) => (
               <div key={detail.id} className="bg-white border border-gray-200 rounded-xl p-6 shadow">
+                {/* ... Item details ... */}
                 <div className="mb-4 border-b pb-3">
                   <h3 className="text-xl font-semibold text-gray-700">
                     {detail.item}
@@ -240,30 +248,27 @@ const confirmSubmitAll = () => {
                     <div><strong>Est. Price per Unit:</strong> ₱{Number(detail.unit_price || 0).toLocaleString()}</div>
                   </div>
                 </div>
-
                 <div className="space-y-6">
                 {rfq_details
                   .filter((rfq) => rfq.pr_details_id === detail.id)
                   .map((rfq) => {
                     const supplier = suppliers.find((s) => s.id === rfq.supplier_id);
                     if (!supplier) return null;
-
                     const uniqueId = `${detail.id}-${supplier.id}`;
                     const isSubmitting = submittingId === uniqueId;
                     const quoted = getQuotedPrice(detail.id, supplier.id);
                     const alreadySubmitted = quoted !== null;
-
                     return (
                       <form
                         key={uniqueId}
                         onSubmit={(e) => confirmSubmit(e, detail.id, supplier.id)}
                         className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center"
                       >
-                        <div className="md:col-span-4">
+                       {/* ... form inputs ... */}
+                       <div className="md:col-span-4">
                           <p className="font-medium text-gray-800">{supplier.representative_name}</p>
                           <p className="text-xs text-gray-500">{supplier.company_name}</p>
                         </div>
-
                         <div className="md:col-span-5 relative">
                           <input
                             type="number"
@@ -291,7 +296,6 @@ const confirmSubmitAll = () => {
                             </span>
                           )}
                         </div>
-
                         <div className="md:col-span-3">
                           <button
                             type="submit"
@@ -305,24 +309,17 @@ const confirmSubmitAll = () => {
                             }`}
                           >
                             {alreadySubmitted ? (
-                              <>
-                                <CheckCircle2 className="w-4 h-4" />
-                                Submitted
-                              </>
+                              <><CheckCircle2 className="w-4 h-4" /> Submitted</>
                             ) : isSubmitting ? (
                               "Submitting..."
                             ) : (
-                              <>
-                                <CheckCircle2 className="w-4 h-4" />
-                                Submit
-                              </>
+                              <><CheckCircle2 className="w-4 h-4" /> Submit</>
                             )}
                           </button>
                         </div>
                       </form>
                     );
                   })}
-
                 </div>
                 {rfq_details.filter((rfq) => rfq.pr_details_id === detail.id).length >= 2 && (
                   <div className="text-right mt-6">
@@ -339,17 +336,20 @@ const confirmSubmitAll = () => {
                     </button>
                   </div>
                 )}
-
-
               </div>
             ))}
           </div>
         </div>
       </div>
+
+      {/* This is your beautifully implemented feedback dialog! */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className={dialogContent.type === "error" ? "text-red-600" : "text-green-600"}>
+            <DialogTitle className={
+              dialogContent.type === "error" ? "text-red-600" : 
+              dialogContent.type === 'success' ? 'text-green-600' : ''
+            }>
               {dialogContent.title}
             </DialogTitle>
             <DialogDescription>
@@ -357,42 +357,41 @@ const confirmSubmitAll = () => {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            {onConfirm ? (
+            {dialogContent.type === "confirm" ? (
               <>
-                <button
+                <Button
                   className="px-4 py-2 bg-gray-300 text-gray-800 rounded-md"
                   onClick={() => {
                     setDialogOpen(false);
-                    setOnConfirm(null);
+                    setOnConfirmAction(null);
                   }}
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   className="px-4 py-2 bg-green-600 text-white rounded-md"
                   onClick={() => {
-                    onConfirm();
+                    if (typeof onConfirmAction === 'function') {
+                      onConfirmAction();
+                    }
                     setDialogOpen(false);
-                    setOnConfirm(null);
+                    setOnConfirmAction(null);
                   }}
                 >
                   Confirm
-                </button>
+                </Button>
               </>
             ) : (
-              <button
+              <Button
                 className="px-4 py-2 bg-blue-600 text-white rounded-md"
                 onClick={() => setDialogOpen(false)}
               >
                 Close
-              </button>
+              </Button>
             )}
           </DialogFooter>
-
         </DialogContent>
       </Dialog>
-
     </ApproverLayout>
-    
   );
 }

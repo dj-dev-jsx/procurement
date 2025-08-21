@@ -31,200 +31,196 @@ class SupplyController extends Controller
 
         ]);
     }
-public function purchase_orders(Request $request)
-{
-    $search = $request->input('search');
-    $division = $request->input('division');
+    public function purchase_orders(Request $request){
+        $search = $request->input('search');
+        $division = $request->input('division');
 
-    $purchaseRequests = PurchaseRequest::with([
-        'division',
-        'focal_person',
-        'details.product.unit',
-        'rfqs.details.supplier'
-    ])
-    ->whereHas('rfqs.details', fn ($q) => $q->where('is_winner', true))
-    ->when($search, function ($query, $search) {
-        $query->where(function ($q) use ($search) {
-            $q->where('pr_number', 'like', "%$search%")
-              ->orWhereHas('focal_person', fn ($q2) => $q2->where('firstname', 'like', "%$search%")->orWhere('lastname', 'like', "%$search%"));
-        });
-    })
-    ->when($division, fn ($q) => $q->where('division_id', $division))
-    ->paginate(10)
-    ->withQueryString();
+        $purchaseRequests = PurchaseRequest::with([
+            'division',
+            'focal_person',
+            'details.product.unit',
+            'rfqs.details.supplier'
+        ])
+        ->whereHas('rfqs.details', fn ($q) => $q->where('is_winner', true))
+        ->when($search, function ($query, $search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('pr_number', 'like', "%$search%")
+                ->orWhereHas('focal_person', fn ($q2) => $q2->where('firstname', 'like', "%$search%")->orWhere('lastname', 'like', "%$search%"));
+            });
+        })
+        ->when($division, fn ($q) => $q->where('division_id', $division))
+        ->paginate(10)
+        ->withQueryString();
 
-    $divisions = Division::select('id', 'division')->get();
+        $divisions = Division::select('id', 'division')->get();
 
-    return Inertia::render('Supply/PurchaseOrder', [
-        'purchaseRequests' => $purchaseRequests,
-        'filters' => [
-            'search' => $search,
-            'division' => $division,
-            'divisions' => $divisions,
-        ],
-    ]);
-}
-
-
-public function create_po($prId)
-{
-    $pr = PurchaseRequest::with(['details.product.unit', 'focal_person', 'division'])
-    ->findOrFail($prId);
-
-    $rfq = RFQ::with(['details.supplier'])->where('pr_id', $prId)->firstOrFail();
-
-
-    $winners = $rfq->details
-        ->filter(fn($d) => $d->is_winner)
-        ->map(function ($winner) use ($pr) {
-            $prDetail = $pr->details->firstWhere('id', $winner->pr_details_id);
-
-            return [
-                'pr_detail_id' => $winner->pr_details_id,
-                'item' => $prDetail->product->name ?? 'N/A',
-                'specs' => $prDetail->product->specs ?? '',
-                'quantity' => $prDetail->quantity,
-                'unit' => $prDetail->product->unit->unit ?? '',
-                'quoted_price' => $winner->quoted_price,
-                'supplier_id' => $winner->supplier_id,
-                'supplier_name' => $winner->supplier->company_name ?? '',
-            ];
-        })->values();
-
-    $allQuotations = [];
-    foreach ($rfq->details as $detail) {
-        $allQuotations[$detail->supplier_id][$detail->pr_details_id] = $detail->quoted_price;
+        return Inertia::render('Supply/PurchaseOrder', [
+            'purchaseRequests' => $purchaseRequests,
+            'filters' => [
+                'search' => $search,
+                'division' => $division,
+                'divisions' => $divisions,
+            ],
+        ]);
     }
 
-    return Inertia::render('Supply/CreatePurchaseOrder', [
-        'pr' => $pr,
-        'rfq' => $rfq,
-        'winners' => $winners,
-        'supplier' => Supplier::find($winners->first()['supplier_id'] ?? null),
-        'suppliers' => Supplier::all(['id', 'company_name']),
-        'supplierQuotedPrices' => $allQuotations, 
-    ]);
-}
 
-public function store_po(Request $request)
-{
-    $request->validate([
-        'rfq_id' => 'required|exists:tbl_rfqs,id',
-        'supplier_id' => 'required|exists:tbl_suppliers,id',
-        'items' => 'required|array|min:1',
-        'items.*.pr_detail_id' => 'required|exists:tbl_pr_details,id',
-        'items.*.quantity' => 'required|numeric|min:0',
-        'items.*.unit_price' => 'required|numeric|min:0',
-        'items.*.total_price' => 'required|numeric|min:0',
-    ]);
+    public function create_po($prId){
+        $pr = PurchaseRequest::with(['details.product.unit', 'focal_person', 'division'])
+        ->findOrFail($prId);
 
-    DB::transaction(function () use ($request) {
-        $firstPrDetailId = $request->items[0]['pr_detail_id'];
-        $purchaseRequest = PurchaseRequest::with('focal_person')->whereHas('details', function ($q) use ($firstPrDetailId) {
-            $q->where('id', $firstPrDetailId);
-        })->firstOrFail();
+        $rfq = RFQ::with(['details.supplier'])->where('pr_id', $prId)->firstOrFail();
 
-        $userId = is_object($purchaseRequest->focal_person)
-            ? $purchaseRequest->focal_person->id
-            : $purchaseRequest->focal_person;
 
-        if (!$userId) {
-            throw new \Exception("Focal person not assigned to this Purchase Request.");
+        $winners = $rfq->details
+            ->filter(fn($d) => $d->is_winner)
+            ->map(function ($winner) use ($pr) {
+                $prDetail = $pr->details->firstWhere('id', $winner->pr_details_id);
+
+                return [
+                    'pr_detail_id' => $winner->pr_details_id,
+                    'item' => $prDetail->product->name ?? 'N/A',
+                    'specs' => $prDetail->product->specs ?? '',
+                    'quantity' => $prDetail->quantity,
+                    'unit' => $prDetail->product->unit->unit ?? '',
+                    'quoted_price' => $winner->quoted_price,
+                    'supplier_id' => $winner->supplier_id,
+                    'supplier_name' => $winner->supplier->company_name ?? '',
+                ];
+            })->values();
+
+        $allQuotations = [];
+        foreach ($rfq->details as $detail) {
+            $allQuotations[$detail->supplier_id][$detail->pr_details_id] = $detail->quoted_price;
         }
 
+        return Inertia::render('Supply/CreatePurchaseOrder', [
+            'pr' => $pr,
+            'rfq' => $rfq,
+            'winners' => $winners,
+            'supplier' => Supplier::find($winners->first()['supplier_id'] ?? null),
+            'suppliers' => Supplier::all(['id', 'company_name']),
+            'supplierQuotedPrices' => $allQuotations, 
+        ]);
+    }
 
-        // Generate PO number
-        $poNumber = $purchaseRequest->pr_number;
-
-        $po = PurchaseOrder::create([
-            'po_number' => $poNumber,
-            'rfq_id' => $request->rfq_id,
-            'supplier_id' => $request->supplier_id,
-            'user_id' => $userId, 
-            'status' => 'Not yet Delivered',
+    public function store_po(Request $request){
+        $request->validate([
+            'rfq_id' => 'required|exists:tbl_rfqs,id',
+            'supplier_id' => 'required|exists:tbl_suppliers,id',
+            'items' => 'required|array|min:1',
+            'items.*.pr_detail_id' => 'required|exists:tbl_pr_details,id',
+            'items.*.quantity' => 'required|numeric|min:0',
+            'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.total_price' => 'required|numeric|min:0',
         ]);
 
-        foreach ($request->items as $item) {
-            PurchaseOrderDetail::create([
-                'po_id' => $po->id,
-                'pr_detail_id' => $item['pr_detail_id'],
-                'quantity' => $item['quantity'],
-                'unit_price' => $item['unit_price'],
-                'total_price' => $item['total_price'],
+        DB::transaction(function () use ($request) {
+            $firstPrDetailId = $request->items[0]['pr_detail_id'];
+            $purchaseRequest = PurchaseRequest::with('focal_person')->whereHas('details', function ($q) use ($firstPrDetailId) {
+                $q->where('id', $firstPrDetailId);
+            })->firstOrFail();
+
+            $userId = is_object($purchaseRequest->focal_person)
+                ? $purchaseRequest->focal_person->id
+                : $purchaseRequest->focal_person;
+
+            if (!$userId) {
+                throw new \Exception("Focal person not assigned to this Purchase Request.");
+            }
+
+
+            // Generate PO number
+            $poNumber = $purchaseRequest->pr_number;
+
+            $po = PurchaseOrder::create([
+                'po_number' => $poNumber,
+                'rfq_id' => $request->rfq_id,
+                'supplier_id' => $request->supplier_id,
+                'user_id' => $userId, 
+                'status' => 'Not yet Delivered',
             ]);
+
+            foreach ($request->items as $item) {
+                PurchaseOrderDetail::create([
+                    'po_id' => $po->id,
+                    'pr_detail_id' => $item['pr_detail_id'],
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                    'total_price' => $item['total_price'],
+                ]);
+            }
+        });
+
+        return redirect()
+            ->route('supply_officer.purchase_orders_table')
+            ->with('success', 'Purchase Order successfully created.');
+    }
+
+    public function purchase_orders_table(Request $request){
+        $search = $request->input('search');
+        $division = $request->input('division');
+
+        $query = PurchaseOrder::with([
+            'supplier',
+            'rfq.purchaseRequest.division',
+            'rfq.purchaseRequest.focal_person',
+            'iar'
+        ]);
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('po_number', 'like', "%{$search}%")
+                ->orWhereHas('rfq.purchaseRequest.focal_person', function ($q2) use ($search) {
+                    $q2->where('firstname', 'like', "%{$search}%")
+                        ->orWhere('lastname', 'like', "%{$search}%");
+                });
+            });
         }
-    });
 
-    return redirect()
-        ->route('supply_officer.purchase_orders')
-        ->with('success', 'Purchase Order successfully created.');
-}
+        if ($division) {
+            $query->whereHas('rfq.purchaseRequest.division', function ($q) use ($division) {
+                $q->where('id', $division);
+            });
+        }
 
-public function purchase_orders_table(Request $request)
-{
-    $search = $request->input('search');
-    $division = $request->input('division');
+        $purchaseOrders = $query->orderByDesc('created_at')->paginate(10)->withQueryString();
 
-    $query = PurchaseOrder::with([
-        'supplier',
-        'rfq.purchaseRequest.division',
-        'rfq.purchaseRequest.focal_person',
-        'iar'
-    ]);
-
-    if ($search) {
-        $query->where(function ($q) use ($search) {
-            $q->where('po_number', 'like', "%{$search}%")
-              ->orWhereHas('rfq.purchaseRequest.focal_person', function ($q2) use ($search) {
-                  $q2->where('firstname', 'like', "%{$search}%")
-                     ->orWhere('lastname', 'like', "%{$search}%");
-              });
-        });
+        return Inertia::render('Supply/PurchaseOrdersTable', [
+            'purchaseOrders' => $purchaseOrders,
+            'filters' => [
+                'search' => $search,
+                'division' => $division,
+                'divisions' => Division::select('id', 'division')->get(),
+            ],
+        ]);
     }
 
-    if ($division) {
-        $query->whereHas('rfq.purchaseRequest.division', function ($q) use ($division) {
-            $q->where('id', $division);
-        });
+    public function print_po($id)
+    {
+        $po = PurchaseOrder::with([
+            'rfq.purchaseRequest.focal_person',
+            'rfq.purchaseRequest.details.product.unit',
+            'supplier',
+            'details' 
+        ])->findOrFail($id);
+
+        return Inertia::render('Supply/PrintPurchaseOrder', [
+            'po' => $po,
+        ]);
     }
 
-    $purchaseOrders = $query->orderByDesc('created_at')->paginate(10)->withQueryString();
-
-    return Inertia::render('Supply/PurchaseOrdersTable', [
-        'purchaseOrders' => $purchaseOrders,
-        'filters' => [
-            'search' => $search,
-            'division' => $division,
-            'divisions' => Division::select('id', 'division')->get(),
-        ],
-    ]);
-}
-
-public function print_po($id)
-{
-    $po = PurchaseOrder::with([
-        'rfq.purchaseRequest.focal_person',
-        'rfq.purchaseRequest.details.product.unit',
-        'supplier',
-        'details' 
-    ])->findOrFail($id);
-
-    return Inertia::render('Supply/PrintPurchaseOrder', [
-        'po' => $po,
-    ]);
-}
-
-public function record_iar($id){
-    $po = PurchaseOrder::with([
-        'rfq.purchaseRequest.focal_person',
-        'rfq.purchaseRequest.details.product.unit',
-        'supplier',
-        'details' 
-    ])->findOrFail($id);
-    return Inertia::render('Supply/RecordIar', [
-        'po' => $po
-    ]);
-}
+    public function record_iar($id){
+        $po = PurchaseOrder::with([
+            'rfq.purchaseRequest.focal_person',
+            'rfq.purchaseRequest.details.product.unit',
+            'supplier',
+            'details' 
+        ])->findOrFail($id);
+        return Inertia::render('Supply/RecordIar', [
+            'po' => $po
+        ]);
+    }
 public function store_iar(Request $request)
 {
     $po = PurchaseOrder::with([
@@ -388,42 +384,76 @@ public function inventory(Request $request)
     ]);
 }
 
-    public function issuance($id)
-    {
-        $po = PurchaseOrder::with(
-            'details.prDetail.product.category', 
-            'details.prDetail.product.unit',
-            'details.prDetail.purchaseRequest.division',
-            'details.prDetail.purchaseRequest.focal_person'
-        )->findOrFail($id);
+public function issuance($po_id, $inventory_id) // <-- Accepts both IDs
+{
+    // --- STEP 1: Find the specific items we are working with ---
+    $inventoryItem = Inventory::findOrFail($inventory_id);
+    $po = PurchaseOrder::with([
+        'details.prDetail.product.category',
+        'details.prDetail.product.unit',
+        'details.prDetail.purchaseRequest.division',
+        'details.prDetail.purchaseRequest.focal_person',
+        'supplier'
+    ])->findOrFail($po_id);
 
-        $detail = $po->details->first();
-        $product = $detail->prDetail->product;
-        $category = $product->category->name;
-        $total_price_po = $detail->total_price;
-        
-        $inventoryItem = Inventory::where('item_desc', $product->specs)
-            ->where('unit', $product->unit_id)
-            ->first();
 
-        $props = [
-            'purchaseOrder' => $po,
-            'inventoryItem' => $inventoryItem,
-            'user' => Auth::user(),
-        ];
-
-        if (strtolower($category) === 'consumable') {
-            return Inertia::render('Supply/RisForm', $props);
-        }
-
-        if (strtolower($category) === 'semi-expendable' && $total_price_po < 50000) {
-            return Inertia::render('Supply/IcsForm', $props);
-        }
-
-        if (strtolower($category) === 'non-expendable' && $total_price_po >= 50000) {
-            return Inertia::render('Supply/ParForm', $props);
+    // --- STEP 2: Find the EXACT detail within the PO that matches the inventory item ---
+    // This is the core of the fix. We no longer just take the `first()` item.
+    $correctDetail = null;
+    foreach ($po->details as $detail) {
+        // dd([
+        //     'message' => "Comparing inventory item to PO detail...",
+        //     'INVENTORY_ITEM_DESC' => $inventoryItem->item_desc,
+        //     'PO_DETAIL_SPECS' => $detail->prDetail->product->specs,
+        //     'ARE_THEY_EQUAL?' => $detail->prDetail->product->specs === $inventoryItem->item_desc,
+        //     'INVENTORY_UNIT_ID' => $inventoryItem->unit,
+        //     'PO_DETAIL_UNIT_ID' => $detail->prDetail->product->unit_id,
+        //     'ARE_UNITS_EQUAL?' => $detail->prDetail->product->unit_id === $inventoryItem->unit,
+        // ]);
+        // Find the detail whose product specs and unit match the inventory item
+        if (
+            $detail->prDetail && $detail->prDetail->product &&
+            $detail->prDetail->product->unit_id === $inventoryItem->unit
+        ) {
+            $correctDetail = $detail;
+            break; // Stop searching once we find the match
         }
     }
+
+    
+    // --- STEP 3: Run the logic on the CORRECT item's data ---
+    $product = $correctDetail->prDetail->product;
+    $categoryName = strtolower($product->category->name ?? '');
+    $totalPricePO = $correctDetail->total_price; // Use the total price of the correct item
+
+    // --- STEP 4: Prepare clean props and render ---
+    // (This uses the robust "flattened props" pattern from our previous discussion)
+    $props = [
+        'purchaseOrder' => [
+            'id' => $po->id,
+            'po_number' => $po->po_number,
+            // We only need to send the one correct detail to the form
+            'details' => [$correctDetail], // Send as an array with one item
+        ],
+        'inventoryItem' => $inventoryItem,
+        'user' => Auth::user(),
+    ];
+    
+    // --- STEP 5: Render the correct form based on the CORRECT item's properties ---
+    if ($categoryName === 'consumable') {
+        return Inertia::render('Supply/RisForm', $props);
+    }
+
+    if ($categoryName === 'semi-expendable' && $totalPricePO < 50000) {
+        return Inertia::render('Supply/IcsForm', $props);
+    }
+
+    if ($categoryName === 'non-expendable' && $totalPricePO >= 50000) {
+        return Inertia::render('Supply/ParForm', $props);
+    }
+    
+    return redirect()->back()->with('error', "No appropriate issuance form found for this item's category ({$categoryName}) and price (₱{$totalPricePO}).");
+}
 
     public function store_ris(Request $request){
         $validated = $request->validate([
@@ -620,45 +650,49 @@ public function inventory(Request $request)
             'user' => Auth::user(), 
         ]);
     }
-    public function ics_issuance_high(Request $request){
-        $search = $request->input('search');
-
-        // Get ALL POs with nested relationships
-        $purchaseOrders = PurchaseOrder::with([
-            'details.prDetail.product.category', 
-            'details.prDetail.product.unit',
-            'details.prDetail.purchaseRequest.division',
-            'details.prDetail.purchaseRequest.focal_person'
-        ])->get();
-        $ics = ICS::with(['receivedBy', 'receivedFrom', 'inventoryItem', 'po'])->get();
-
-        // Map all related inventory items (optional)
-        $inventoryItems = [];
-
-        foreach ($purchaseOrders as $po) {
-            foreach ($po->details as $detail) {
-                $product = $detail->prDetail->product ?? null;
-
-                if ($product) {
-                    $inventory = Inventory::where('item_desc', $product->specs)
-                        ->where('unit', $product->unit_id)
-                        ->first();
-
-                    $inventoryItems[] = [
-                        'po_id' => $po->id,
-                        'item_desc' => $product->specs,
-                        'inventory' => $inventory,
-                    ];
-                }
-            }
-        }
-        return Inertia::render('Supply/IcsHigh', [
-            'purchaseOrders' => $purchaseOrders,
-            'inventoryItems' => $inventoryItems,
-            'ics' => $ics,
-            'user' => Auth::user(), 
+public function ics_issuance_high(Request $request)
+{
+    $icsQuery = ICS::query()
+        ->where('type', 'high')
+        ->with([
+            'po.rfq.purchaseRequest.division',
+            'po.rfq.purchaseRequest.focal_person',
+            'inventoryItem.unit',
+            'receivedBy',
         ]);
+
+    // --- APPLY ALL FILTERS ON THE SERVER ---
+    
+    // Search Filter
+    if ($request->filled('search')) {
+        $search = $request->input('search');
+        $icsQuery->where(function ($query) use ($search) {
+            $query->where('ics_number', 'like', "%{$search}%")
+                  ->orWhereHas('inventoryItem', function ($q) use ($search) {
+                      $q->where('item_desc', 'like', "%{$search}%");
+                  });
+        });
     }
+
+    // Month Filter
+    if ($request->filled('month')) {
+        $icsQuery->whereMonth('created_at', $request->input('month'));
+    }
+
+    // Year Filter
+    if ($request->filled('year')) {
+        $icsQuery->whereYear('created_at', $request->input('year'));
+    }
+
+    $icsRecords = $icsQuery->latest()->get();
+
+    return Inertia::render('Supply/IcsHigh', [
+        'icsRecords' => $icsRecords,
+        'user' => Auth::user(),
+        // Send all active filters back to the component
+        'filters' => $request->only(['search', 'month', 'year']),
+    ]);
+}
     public function par_issuance(Request $request){
         $search = $request->input('search');
 

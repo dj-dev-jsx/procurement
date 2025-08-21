@@ -1,63 +1,72 @@
 import IssuanceTabs from '@/Layouts/IssuanceTabs';
 import SupplyOfficerLayout from '@/Layouts/SupplyOfficerLayout';
-import { TrashIcon } from '@heroicons/react/16/solid';
-import { Head } from '@inertiajs/react';
+import { TrashIcon } from "@heroicons/react/16/solid";
+import { Head, useForm } from '@inertiajs/react';
 import { PenBoxIcon, PrinterCheckIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect } from 'react'; // Only need useEffect
+
+// A small helper function to safely get nested data. This is crucial to prevent crashes.
+const getSafe = (fn, defaultValue = "N/A") => {
+  try {
+    const value = fn();
+    return value === null || value === undefined ? defaultValue : value;
+  } catch (e) {
+    return defaultValue;
+  }
+};
+
+// The component now accepts a simple `icsRecords` prop, plus filters and user.
+export default function IcsHigh({ icsRecords, user, filters }) {
+
+  const { data, setData, get } = useForm({
+    search: filters?.search ?? "",
+    month: filters?.month ?? "",
+    year: filters?.year ?? new Date().getFullYear(),
+  });
 
 
-export default function IcsHigh({purchaseOrders, inventoryItems, ics, user}) {
-    console.log("PO:", purchaseOrders);
-    console.log("IV:",inventoryItems);
-    console.log("ICS:",ics);
-  
-  
-    const [search, setSearch] = useState('');
-    const [filterMonth, setFilterMonth] = useState('');
-    const [filterYear, setFilterYear] = useState(new Date().getFullYear());
-  
-  
-    const getInventory = (specs, unitId) => inventoryItems.find(
-      inv =>
-        inv.item_desc === specs && inv.inventory?.unit === unitId
-    )?.inventory;
-  
-  const getIcsRecords = (poId, inventoryID) => 
-    ics.find(i => i.po_id === poId && i.inventory_item_id === inventoryID && i.type === "high");
+
+useEffect(() => {
+  const timeoutId = setTimeout(() => {
+    get(route("supply_officer.ics_issuance_high"), {
+      preserveState: true,
+      replace: true,
+      data,   // pass whole form state
+    });
+  }, 500); // debounce 500ms
+
+  return () => clearTimeout(timeoutId);
+}, [data.search, data.month, data.year]);
+
+
 
   return (
-    <SupplyOfficerLayout header="Schools Divisions Office - Ilagan | Inventory Custodian Slip (ICS) - LOW">
-      <Head title='ICS - LOW' />
+    <SupplyOfficerLayout header="Schools Divisions Office - Ilagan | Inventory Custodian Slip (ICS) - HIGH">
+      <Head title='ICS - HIGH' />
       <IssuanceTabs />
 
-      {/* Your RIS content here */}
-      <div className="bg-white rounded-lg p-6 shadow space-y-4">
+      <div className="bg-white rounded-lg p-6 shadow-md space-y-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-          <h2 className="text-lg font-bold mb-4">Inventory Custodian Slip (ICS) - LOW</h2>
-          {/* RIS table or form here */}
-          {/* Action Buttons */}
-            <div className="flex flex-wrap items-center gap-2">
-              <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm shadow">
-                Monthly Report
-              </button>
-              <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm shadow">
-                Export PDF
-              </button>
-              <button className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md text-sm shadow">
-                Export Excel
-              </button>
-              <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm shadow">
-                + New RIS
-              </button>
-            </div>
+          <h2 className="text-xl font-bold text-gray-800">Inventory Custodian Slip (ICS) - HIGH VALUE</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm shadow">
+              Monthly Report
+            </button>
+            <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm shadow">
+              Export PDF
+            </button>
+          </div>
         </div>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        
+        {/* Filter Controls now use `data` and `setData` from the single useForm hook */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-4 border-t">
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium">Month:</label>
+            <label htmlFor="month-filter" className="text-sm font-medium">Month:</label>
             <select
-              className="border border-gray-300 rounded-md px-2 py-1 text-sm"
-              value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value)}
+              id="month-filter"
+              className="border border-gray-300 rounded-md px-2 py-1 text-sm shadow-sm"
+              value={data.month} // Use data.month
+              onChange={(e) => setData('month', e.target.value)} // Use setData
             >
               <option value="">All</option>
               {[
@@ -68,22 +77,23 @@ export default function IcsHigh({purchaseOrders, inventoryItems, ics, user}) {
               ))}
             </select>
 
-            <label className="text-sm font-medium ml-4">Year:</label>
+            <label htmlFor="year-filter" className="text-sm font-medium ml-4">Year:</label>
             <input
+              id="year-filter"
               type="number"
-              className="border border-gray-300 rounded-md px-2 py-1 w-20 text-sm"
-              value={filterYear}
-              onChange={(e) => setFilterYear(e.target.value)}
+              className="border border-gray-300 rounded-md px-2 py-1 w-24 text-sm shadow-sm"
+              value={data.year} // Use data.year
+              onChange={(e) => setData('year', e.target.value)} // Use setData
             />
           </div>
 
           <div>
             <input
               type="text"
-              placeholder="Search RIS number, item..."
-              className="border border-gray-300 rounded-md px-3 py-2 w-full md:w-64 text-sm"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search ICS number, item..."
+              className="border border-gray-300 rounded-md px-3 py-2 w-full md:w-64 text-sm shadow-sm"
+              value={data.search}
+              onChange={(e) => setData('search', e.target.value)}
             />
           </div>
         </div>
@@ -92,74 +102,67 @@ export default function IcsHigh({purchaseOrders, inventoryItems, ics, user}) {
           <table className="min-w-full divide-y divide-gray-200 text-sm text-left text-gray-700">
             <thead className="bg-gray-100 text-xs font-semibold uppercase tracking-wider text-gray-600">
               <tr>
-                <th className="px-4 py-2">#</th>
-                <th className="px-4 py-2">ICS No.</th>
-                <th className="px-4 py-2">Division</th>
-                <th className="px-4 py-2">Received By/Focal Person</th>
-                <th className="px-4 py-2">Item Description</th>
-                <th className="px-4 py-2">Quantity</th>
-                <th className="px-4 py-2">Unit Cost</th>
-                <th className="px-4 py-2">Total Cost</th>
-                <th className="px-4 py-2">Date</th>
-                <th className="px-4 py-2 text-center">Actions</th>
+                <th className="px-4 py-3">#</th>
+                <th className="px-4 py-3">ICS No.</th>
+                <th className="px-4 py-3">Division</th>
+                <th className="px-4 py-3">Received By</th>
+                <th className="px-4 py-3">Item Description</th>
+                <th className="px-4 py-3 text-center">Quantity</th>
+                <th className="px-4 py-3 text-right">Unit Cost</th>
+                <th className="px-4 py-3 text-right">Total Cost</th>
+                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {purchaseOrders.map((po) =>
-                po.details?.map((detail, index) => {
-                  const product = detail.pr_detail?.product ?? "N/A";
-                  const specs = product?.specs ?? "N/A";
-                  const unit = product?.unit?.id ?? "N/A";
-                  const item = `${product?.name} ${specs}` ?? "N/A";
-                  const focal = `${detail.pr_detail?.purchase_request?.focal_person.firstname} ${detail.pr_detail?.purchase_request?.focal_person.middlename} ${detail.pr_detail?.purchase_request?.focal_person.lastname}` ?? "N/A";
-                  const division = detail.pr_detail?.purchase_request?.division.division ?? "N/A";
-                  const inventoryData = getInventory(specs, unit);
-                  const icsData = getIcsRecords(po.id, inventoryData?.id);
-                  if (!icsData) return null;
-                  const dateReceived = icsData?.created_at
-                    ? new Date(icsData.created_at).toLocaleDateString('en-PH', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                      })
-                    : '—';
+              {icsRecords.length > 0 ? (
+                // The map now uses the `icsRecords` prop directly.
+                icsRecords.map((ics, index) => {
+                  const division = getSafe(() => ics.po.rfq.purchase_request.division.division);
+                  const receivedBy = getSafe(() => `${ics.received_by.firstname} ${ics.received_by.lastname}`);
+                  const itemDesc = getSafe(() => ics.inventory_item.item_desc);
+                  const unitCost = parseFloat(ics.unit_cost || 0);
+                  const totalCost = parseFloat(ics.total_cost || 0);
+                  const dateReceived = new Date(ics.created_at).toLocaleDateString('en-PH', {
+                      year: 'numeric', month: 'long', day: 'numeric',
+                  });
 
-                  return(
-                    <tr key={`${po.id} - ${index}`}>
-                      <td className="px-4 py-2">{index+1}</td>
-                      <td className="px-4 py-2">{icsData?.ics_number}</td>
+                  return (
+                    <tr key={ics.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2">{index + 1}</td>
+                      <td className="px-4 py-2 font-semibold text-gray-900">{ics.ics_number}</td>
                       <td className="px-4 py-2">{division}</td>
-                      <td className="px-4 py-2">{focal}</td>
-                      <td className="px-4 py-2">{item}</td>
-                      <td className="px-4 py-2">{icsData?.quantity}</td>
-                      <td className="px-4 py-2">₱{Number(inventoryData?.unit_cost ?? 0).toFixed(2)}</td>
-                      <td className="px-4 py-2">₱{(Number(inventoryData?.unit_cost ?? 0) * detail.quantity).toFixed(2)}</td>
+                      <td className="px-4 py-2">{receivedBy}</td>
+                      <td className="px-4 py-2">{itemDesc}</td>
+                      <td className="px-4 py-2 text-center font-medium">{ics.quantity}</td>
+                      <td className="px-4 py-2 text-right">₱{unitCost.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-right font-semibold">₱{totalCost.toFixed(2)}</td>
                       <td className="px-4 py-2">{dateReceived}</td>
-                        <td className=" flex px-4 py-2 text-center space-x-2">
-                          <button className="flex justify-center items-center gap-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
-                            <PenBoxIcon className='h-4 w-4' />
-                            Edit
+                      <td className="flex justify-center items-center px-4 py-2 space-x-2">
+                          <button className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
+                              <PenBoxIcon className='h-4 w-4' /> Edit
                           </button>
-                          <button className="flex justify-center items-center gap-2 px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 transition">
-                            <PrinterCheckIcon className='h4 w-4'/>
-                            Print
+                          <button className="flex items-center gap-2 px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 transition">
+                              <PrinterCheckIcon className='h-4 w-4'/> Print
                           </button>
-                          <button className="flex justify-center items-center gap-2 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition">
-                            <TrashIcon className='h-4 w-4'/>
-                            Delete
+                          <button className="flex items-center gap-2 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition">
+                              <TrashIcon className='h-4 w-4'/> Delete
                           </button>
-                        </td>
-
+                      </td>
                     </tr>
                   );
                 })
+              ) : (
+                <tr>
+                  <td colSpan="10" className="text-center py-8 text-gray-500">
+                    No high-value ICS records found for the selected filters.
+                  </td>
+                </tr>
               )}
-              
             </tbody>
           </table>
         </div>
       </div>
-      
     </SupplyOfficerLayout>
   );
 }

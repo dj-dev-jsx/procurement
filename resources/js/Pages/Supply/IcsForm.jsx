@@ -3,6 +3,7 @@ import { Head, useForm } from "@inertiajs/react";
 import { FileText, SendHorizonal } from "lucide-react";
 
 export default function IcsForm({ purchaseOrder, inventoryItem, user }) {
+  console.log("running");
   const detail = purchaseOrder.details?.[0];
   const pr = detail?.pr_detail?.purchase_request;
   const product = detail?.pr_detail?.product;

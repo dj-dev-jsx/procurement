@@ -82,7 +82,7 @@ Route::middleware(['auth', 'role:bac_approver'])->prefix('bac_approver')->group(
     Route::post('/submit_quoted', [ApproverController::class, 'submit_quoted'])->name('bac_approver.submit_quoted');
     Route::post('/submit_bulk_quoted', [ApproverController::class, 'submit_bulk_quoted'])->name('bac_approver.submit_bulk_quoted');
     Route::get('/abstract/{pr}', [ApproverController::class, 'abstract_of_quotations'])->name('bac_approver.abstract_of_quotations');
-    Route::post('/bac-approver/mark-winner/{id}', [ApproverController::class, 'markWinner'])->name('bac_approver.mark_winner');
+    Route::post('/mark-winner/{id}/{pr_detail_id?}', [ApproverController::class, 'markWinner'])->name('bac_approver.mark_winner');
     Route::get('/approver/print_aoq/{id}/{pr_detail_id?}', [ApproverController::class, 'printAOQ'])->name('bac_approver.print_aoq');
     Route::post('/store_supplier', [ApproverController::class, 'store_supplier'])->name('bac_approver.store_supplier');
 });
@@ -100,7 +100,7 @@ Route::middleware(['auth', 'role:supply_officer'])->prefix('supply_officer')->gr
     Route::get('/iar_table', [SupplyController::class, 'iar_table'])->name('supply_officer.iar_table');
     Route::get('/print_iar/{id}', [SupplyController::class, 'print_iar'])->name('supply_officer.print_iar');
     Route::get('/inventory', [SupplyController::class, 'inventory'])->name('supply_officer.inventory');
-    Route::get('/issuance/{id}', [SupplyController::class, 'issuance'])->name('supply_officer.issuance');
+    Route::get('/issuance/{po_id}/{inventory_id}', [SupplyController::class, 'issuance'])->name('supply_officer.issuance');
     Route::post('/store_ris', [SupplyController::class, 'store_ris'])->name('supply_officer.store_ris');
     Route::post('/store_ics', [SupplyController::class, 'store_ics'])->name('supply_officer.store_ics');
     Route::get('/ris_issuance', [SupplyController::class, 'ris_issuance'])->name('supply_officer.ris_issuance');
