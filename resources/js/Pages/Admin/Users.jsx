@@ -1,8 +1,28 @@
 import AdminLayout from "@/Layouts/AdminLayout";
 import { PencilSquareIcon, TrashIcon } from "@heroicons/react/24/solid";
-import { Head } from "@inertiajs/react";
+import { Head, usePage } from "@inertiajs/react";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
+
 
 export default function Users({ users }) {
+    const { props } = usePage();
+    const success = props.flash?.success;
+    const [open, setOpen] = useState(false);
+
+    useEffect(() => {
+        if (success) {
+            setOpen(true); // open dialog automatically if success exists
+        }
+    }, [success]);
     return (
         <AdminLayout
             header={
@@ -97,6 +117,19 @@ export default function Users({ users }) {
                     </tbody>
                 </table>
             </div>
+            <Dialog open={open} onOpenChange={setOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Success</DialogTitle>
+                        <DialogDescription>
+                            {success}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button onClick={() => setOpen(false)}>Close</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AdminLayout>
     );
 }

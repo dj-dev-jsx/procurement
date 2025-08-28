@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('division_id');
             $table->string('name');
+            $table->enum('status', ['active', 'inactive'])->default('active');
             $table->timestamps();
             $table->foreign('division_id')->references('id')->on('tbl_divisions')->onDelete('cascade');
         });

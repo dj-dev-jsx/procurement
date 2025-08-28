@@ -21,6 +21,7 @@ return new class extends Migration
             $table->string('password');
             $table->foreignId('division_id')->nullable()->constrained('tbl_divisions')->restrictOnDelete();
             $table->string('position')->nullable();
+            $table->enum('account_status', ['active', 'inactive'])->default('active');
             $table->rememberToken();
             $table->timestamps();
         });

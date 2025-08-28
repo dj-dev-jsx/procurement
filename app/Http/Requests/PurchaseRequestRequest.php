@@ -24,7 +24,7 @@ class PurchaseRequestRequest extends FormRequest
         return [
             'focal_person' => 'required|exists:users,id',
             'pr_number' => 'required|string|max:50|unique:tbl_purchase_requests,pr_number',
-            'purpose' => 'required|string|max:1000',
+            'purpose' => 'nullable|string|max:1000',
             'division_id' => 'required|exists:tbl_divisions,id',
             'requested_by' => 'required|string|max:255',
 

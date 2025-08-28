@@ -1,5 +1,15 @@
 import AdminLayout from "@/Layouts/AdminLayout";
 import { Head, useForm } from "@inertiajs/react";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 export default function CreateUser({ divisions, roles }) {
     const { data, setData, post, processing, errors } = useForm({
@@ -8,21 +18,36 @@ export default function CreateUser({ divisions, roles }) {
     lastname: "",
     email: "",
     password: "",
+    password_confirmation: "",
     position: "",
     division_id: "",
     role: ""
     });
 
+    const [open, setOpen] = useState(false);
+
     const handleSubmit = (e) => {
-    e.preventDefault();
-    // post(route("admin.users.store"));
+        e.preventDefault();
+        setOpen(true); // open confirmation dialog
+    };
+
+    const confirmSubmit = () => {
+        post(route("admin.store_user"), {
+            onSuccess: () => setOpen(false), // close after success
+        });
     };
 
     return (
     <AdminLayout header="Add User">
         <Head title="Add User" />
-
+        <button
+            onClick={() => window.history.back()}
+            className="inline-flex items-center px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-md text-sm shadow-sm"
+          >
+            ← Back
+          </button>
         <div className="w-full mt-6 bg-white p-8 rounded-xl shadow">
+            
         <form onSubmit={handleSubmit} className="space-y-6">
             {/* Name Fields */}
             <div>
@@ -99,6 +124,21 @@ export default function CreateUser({ divisions, roles }) {
                 <p className="text-red-500 text-xs mt-1">{errors.password}</p>
             )}
             </div>
+            <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+                Confirm Password
+            </label>
+            <input
+                type="password"
+                value={data.password_confirmation}
+                onChange={(e) => setData("password_confirmation", e.target.value)}
+                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Re-enter password"
+            />
+            {errors.password_confirmation && (
+                <p className="text-red-500 text-xs mt-1">{errors.password_confirmation}</p>
+            )}
+            </div>
 
             {/* Position */}
             <div>
@@ -151,18 +191,36 @@ export default function CreateUser({ divisions, roles }) {
             {errors.role && <p className="text-red-500 text-xs mt-1">{errors.role}</p>}
             </div>
 
-            {/* Submit Button */}
             <div className="pt-4">
-            <button
-                type="submit"
-                disabled={processing}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-md transition"
-            >
-                {processing ? "Saving..." : "Add User"}
-            </button>
+                <button
+                    type="submit"
+                    disabled={processing}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-md transition"
+                >
+                    {processing ? "Saving..." : "Add User"}
+                </button>
             </div>
-        </form>
+            </form>
         </div>
+        {/* Confirmation Dialog */}
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Confirm Add User</DialogTitle>
+                    <DialogDescription>
+                        Are you sure you want to add this user? Please review the details before proceeding.
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setOpen(false)}>
+                        Cancel
+                    </Button>
+                    <Button onClick={confirmSubmit} disabled={processing}>
+                        {processing ? "Saving..." : "Confirm"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </AdminLayout>
     );
 }

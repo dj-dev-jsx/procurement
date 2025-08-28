@@ -19,4 +19,10 @@ class Division extends Model
     {
         return $this->hasMany(PurchaseRequest::class, 'division_id');
     }
+    public function activeOfficer()
+{
+    return $this->hasOne(RequestedBy::class, 'division_id')
+                ->where('status', 'active');
+}
+
 }

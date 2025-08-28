@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Approver\ApproverController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Requester\RequesterController;
+use Barryvdh\Snappy\Facades\SnappyPdf;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -47,6 +48,10 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::get('/', [AdminController::class, 'dashboard'])->name('admin.dashboard');
     Route::get('/view_users', [AdminController::class, 'view_users'])->name('admin.view_users');
     Route::get('/create_user_form', [AdminController::class, 'create_user_form'])->name('admin.create_user_form');
+    Route::post('/store_user',[AdminController::class, 'store_user'])->name('admin.store_user');
+    Route::get('/requesitioning', [AdminController::class, 'requesting_officers'])->name('admin.requesting');
+    Route::get('/edit_requesitioning{division}', [AdminController::class, 'edit_requesting'])->name('admin.edit_requesting');
+     Route::put('/requesting-officers/{division}', [AdminController::class, 'update_requesting'])->name('admin.update_requesting');
 });
 
 // Requester routes
@@ -110,7 +115,6 @@ Route::middleware(['auth', 'role:supply_officer'])->prefix('supply_officer')->gr
     Route::get('/export_excel', [SupplyController::class, 'export_excel'])->name('supply_officer.export_excel');
     Route::get('/export_excel_monthly', [SupplyController::class, 'export_excel_monthly'])->name('supply_officer.export_excel_monthly');
 });
-
 // Shared dashboard route
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');

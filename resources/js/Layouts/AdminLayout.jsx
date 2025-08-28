@@ -10,50 +10,51 @@ import {
 import NavLink from '@/Components/NavLink';
 import Dropdown from '@/Components/Dropdown';
 import logo from '../src/deped1.png';
+import { UserCog, Users } from 'lucide-react';
 
-function PurchaseRequestsDropdown({ isSidebarCollapsed }) {
-  const [isOpen, setIsOpen] = useState(false);
+// function PurchaseRequestsDropdown({ isSidebarCollapsed }) {
+//   const [isOpen, setIsOpen] = useState(false);
 
-  return (
-    <div className="w-full">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        aria-expanded={isOpen}
-        className="flex items-center justify-between w-full px-2 py-2 hover:bg-indigo-600 hover:text-white rounded-lg transition-all duration-200"
-      >
-        <div className="flex items-center gap-2 w-full">
-          <ClipboardDocumentIcon className="w-5 h-5 text-gray-300" />
-          {!isSidebarCollapsed && <span className="text-gray-200 font-medium text-nowrap pe-1">Purchase Requests</span>}
-        </div>
-        {!isSidebarCollapsed && (
-          <ChevronDownIcon
-            className={`w-5 h-5 text-gray-300 transform transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
-          />
-        )}
-      </button>
+//   return (
+//     <div className="w-full">
+//       <button
+//         onClick={() => setIsOpen(!isOpen)}
+//         aria-expanded={isOpen}
+//         className="flex items-center justify-between w-full px-2 py-2 hover:bg-indigo-600 hover:text-white rounded-lg transition-all duration-200"
+//       >
+//         <div className="flex items-center gap-2 w-full">
+//           <ClipboardDocumentIcon className="w-5 h-5 text-gray-300" />
+//           {!isSidebarCollapsed && <span className="text-gray-200 font-medium text-nowrap pe-1">Purchase Requests</span>}
+//         </div>
+//         {!isSidebarCollapsed && (
+//           <ChevronDownIcon
+//             className={`w-5 h-5 text-gray-300 transform transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
+//           />
+//         )}
+//       </button>
 
-      {isOpen && (
-        <nav className="mt-2 pl-10 space-y-1">
-          {[
-            { label: 'Purchase Requests' },
-            { label: 'For Review' },
-            { label: 'Approved' },
-            { label: 'Disapproved' },
-          ].map((item) => (
-            <NavLink
-              key={item.label}
-              href={item.routeName ? route(item.routeName) : '#'}
-              active={item.routeName ? route().current(item.routeName) : false}
-              className="block text-sm text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-1 rounded-md transition"
-            >
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-      )}
-    </div>
-  );
-}
+//       {isOpen && (
+//         <nav className="mt-2 pl-10 space-y-1">
+//           {[
+//             { label: 'Purchase Requests' },
+//             { label: 'For Review' },
+//             { label: 'Approved' },
+//             { label: 'Disapproved' },
+//           ].map((item) => (
+//             <NavLink
+//               key={item.label}
+//               href={item.routeName ? route(item.routeName) : '#'}
+//               active={item.routeName ? route().current(item.routeName) : false}
+//               className="block text-sm text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-1 rounded-md transition"
+//             >
+//               {item.label}
+//             </NavLink>
+//           ))}
+//         </nav>
+//       )}
+//     </div>
+//   );
+// }
 
 export default function AdminLayout({ header, children }) {
   const { user } = usePage().props.auth;
@@ -83,13 +84,13 @@ export default function AdminLayout({ header, children }) {
         <Link href="/">
           <img src={logo} alt="Logo" className="h-10 w-auto" />
         </Link>
-        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="focus:outline-none">
+        {/* <button onClick={() => setSidebarOpen(!sidebarOpen)} className="focus:outline-none">
           {sidebarOpen ? (
             <XMarkIcon className="h-6 w-6" />
           ) : (
             <Bars3Icon className="h-6 w-6" />
           )}
-        </button>
+        </button> */}
       </div>
 
       {/* Sidebar */}
@@ -108,7 +109,7 @@ export default function AdminLayout({ header, children }) {
 
           {/* Time */}
           <div className="text-center text-xs text-gray-400 font-mono mb-6 select-none">
-            {formattedDateTime}
+            Supply and Property Office
           </div>
 
           {/* Navigation */}
@@ -127,11 +128,18 @@ export default function AdminLayout({ header, children }) {
               active={route().current('admin.view_users')}
               className="flex items-center gap-2 px-4 py-2 hover:bg-indigo-600 rounded-lg transition-all duration-200"
             >
-              <HomeIcon className="w-5 h-5 text-gray-300" />
+              <Users className="w-5 h-5 text-gray-300" />
               <span className="text-white font-medium">Users</span>
             </NavLink>
-
-            <PurchaseRequestsDropdown isSidebarCollapsed={false} />
+            <NavLink
+              href={route('admin.requesting')}
+              active={route().current('admin.requesting')}
+              className="flex items-center gap-2 px-4 py-2 hover:bg-indigo-600 rounded-lg transition-all duration-200"
+            >
+              <UserCog className="w-5 h-5 text-gray-300" />
+              <span className="text-white font-medium">Requisitioning Officers</span>
+            </NavLink>
+            {/* <PurchaseRequestsDropdown isSidebarCollapsed={false} /> */}
           </nav>
         </div>
       </aside>

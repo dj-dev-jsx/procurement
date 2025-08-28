@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 export default function CreatePurchaseOrder({ pr, rfq, suppliers, winners, supplierQuotedPrices }) {
-  // --- 1. DATA PREPARATION (No changes here) ---
+
   const winningSupplierIds = useMemo(() => [...new Set(winners.map(w => w.supplier_id))], [winners]);
   const winningSuppliers = useMemo(() => suppliers.filter(s => winningSupplierIds.includes(s.id)), [suppliers, winningSupplierIds]);
   const otherSuppliers = useMemo(() => suppliers.filter(s => !winningSupplierIds.includes(s.id)), [suppliers, winningSupplierIds]);

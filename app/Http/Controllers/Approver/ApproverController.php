@@ -13,6 +13,7 @@ use Exception;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Validation\ValidationException;
+use Barryvdh\Snappy\Facades\SnappyPdf as PDF;
 
 class ApproverController extends Controller
 {
@@ -234,58 +235,68 @@ public function store_supplier(Request $request)
 }
 
 
-    public function print_rfq($id)
-    {
-        $rfq = RFQ::with(['details.supplier', 'purchaseRequest.details.product.unit'])->findOrFail($id);
+public function print_rfq($id)
+{
+    $rfq = RFQ::with(['details.supplier', 'purchaseRequest.details.product.unit'])
+        ->findOrFail($id);
 
-
-        $details = $rfq->purchaseRequest->details->map(function ($detail) {
-            return [
-                'id' => $detail->id,
-                'item' => $detail->product->name ?? '',
-                'specs' => $detail->product->specs ?? '',
-                'unit' => $detail->product->unit->unit ?? '',
-                'quantity' => $detail->quantity,
-                'unit_price' => $detail->unit_price,
-                'total_price' => $detail->quantity * $detail->unit_price,
-            ];
-        });
-
-        return Inertia::render('BacApprover/PrintRfq', [
-            'rfq' => $rfq,
-            'details' => $details,
-        ]);
-    }
-public function print_rfq_per_item($rfqId, $detailId)
-    {
-        // 1. Find the parent RFQ. This remains the same.
-        $rfq = RFQ::findOrFail($rfqId);
-
-        $rfqDetail = $rfq->details()
-                         ->with(['supplier', 'prDetail.product.unit']) // Eager load supplier and the original item info
-                         ->findOrFail($detailId);
-
-        $formattedDetail = [
-            // We get the data from the original Purchase Request Detail (`prDetail`)
-            'id' => $rfqDetail->prDetail->id,
-            'item' => $rfqDetail->prDetail->product->name ?? 'N/A',
-            'specs' => $rfqDetail->prDetail->product->specs ?? '',
-            'unit' => $rfqDetail->prDetail->product->unit->unit ?? 'N/A',
-            'quantity' => $rfqDetail->prDetail->quantity,
-            'unit_price' => $rfqDetail->prDetail->unit_price,
-            'total_price' => $rfqDetail->prDetail->quantity * $rfqDetail->prDetail->unit_price,
-
-            // We also include the specific bid amount from the RFQ Detail itself
-            'estimated_bid' => $rfqDetail->estimated_bid,
+    $details = $rfq->purchaseRequest->details->map(function ($detail) {
+        return [
+            'id' => $detail->id,
+            'item' => $detail->product->name ?? '',
+            'specs' => $detail->product->specs ?? '',
+            'unit' => $detail->product->unit->unit ?? '',
+            'quantity' => $detail->quantity,
+            'unit_price' => $detail->unit_price,
+            'total_price' => $detail->quantity * $detail->unit_price,
         ];
+    });
 
-        // 4. Return the Inertia render with the correctly structured props.
-        return Inertia::render('BacApprover/PrintRfqPerItem', [
-            'rfq' => $rfq,
-            'detail' => $formattedDetail, // Pass the clean, formatted array
-            'supplier' => $rfqDetail->supplier, // Pass the full supplier object separately
-        ]);
-    }
+    // You don’t need to pass the logo anymore — just use a fixed path in blade
+    $pdf = PDF::loadView('pdf.rfq', [
+        'rfq' => $rfq,
+        'details' => $details,
+    ]);
+
+    return $pdf->inline("RFQ-{$rfq->id}.pdf");
+}
+public function print_rfq_per_item($rfqId, $detailId)
+{
+    // Find the parent RFQ
+    $rfq = RFQ::findOrFail($rfqId);
+
+    // Get the RFQ detail with supplier + product/unit
+    $rfqDetail = $rfq->details()
+        ->with(['supplier', 'prDetail.product.unit'])
+        ->findOrFail($detailId);
+
+    $formattedDetail = [
+        'id' => $rfqDetail->prDetail->id,
+        'item' => $rfqDetail->prDetail->product->name ?? 'N/A',
+        'specs' => $rfqDetail->prDetail->product->specs ?? '',
+        'unit' => $rfqDetail->prDetail->product->unit->unit ?? 'N/A',
+        'quantity' => $rfqDetail->prDetail->quantity,
+        'unit_price' => $rfqDetail->prDetail->unit_price,
+        'total_price' => $rfqDetail->prDetail->quantity * $rfqDetail->prDetail->unit_price,
+        'estimated_bid' => $rfqDetail->estimated_bid,
+    ];
+
+    $supplier = $rfqDetail->supplier;
+
+    // ✅ Pass absolute path for the logo
+    $logo = public_path('/deped1.png');
+
+    // Generate PDF from Blade
+    $pdf = PDF::loadView('pdf.rfq_per_item', [
+        'rfq' => $rfq,
+        'detail' => $formattedDetail,
+        'supplier' => $supplier,
+        'logo' => $logo,
+    ]);
+
+    return $pdf->inline("RFQ-Item-{$rfq->id}-{$rfqDetail->id}.pdf");
+}
+
 
     public function for_quotations()
     {
@@ -496,11 +507,13 @@ public function printAOQ($id, $pr_detail_id = null)
             ->take(3)
             ->values();
 
-        return Inertia::render('BacApprover/PrintAOQ', [
+        $pdf = PDF::loadView('pdf.aoq_item', [
             'rfq'      => $rfq,
             'prDetail' => $prDetail,
             'top3'     => $top3
         ]);
+
+        return $pdf->inline('AOQ_item_'.$pr_detail_id.'.pdf');
     }
 
     // ----------------------
@@ -518,10 +531,12 @@ public function printAOQ($id, $pr_detail_id = null)
         ->take(3)
         ->values();
 
-    return Inertia::render('BacApprover/PrintAOQ', [
+    $pdf = PDF::loadView('pdf.aoq_full', [
         'rfq'      => $rfq,
         'top3'     => $supplierTotals
     ]);
+
+    return $pdf->inline('AOQ_full_'.$id.'.pdf');
 }
 
 

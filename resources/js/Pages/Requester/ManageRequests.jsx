@@ -164,7 +164,7 @@ const { flash } = usePage().props;
                     {(pr.is_sent === 0 && pr.status !== "Approved") ? (
                       <TooltipLink
                         to={route("requester.add_details", pr.id)}
-                        tooltip="Add items for this PR"
+                        tooltip="Edit PR"
                         className="hover:underline text-indigo-600"
                       >
                         {pr.pr_number}

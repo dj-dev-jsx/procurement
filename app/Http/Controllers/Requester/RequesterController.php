@@ -9,6 +9,7 @@ use App\Models\Division;
 use App\Models\PurchaseRequest;
 use App\Models\Unit;
 use App\Models\User;
+use Barryvdh\Snappy\Facades\SnappyPdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -21,7 +22,32 @@ use Illuminate\Support\Facades\Log;
 class RequesterController extends Controller
 {
     public function dashboard(){
-        return Inertia::render('Requester/Dashboard');
+        return Inertia::render('Requester/Dashboard', [
+            'auth' => [
+                'user' => Auth::user(),
+            ],
+            'stats' => [
+                // Total PRs by this requester
+                'total' => PurchaseRequest::where('requested_by', Auth::id())->count(),
+
+                // Pending PRs by this requester
+                'pending' => PurchaseRequest::where('requested_by', Auth::id())
+                    ->where('status', 'pending')
+                    ->count(),
+
+                // Approved PRs by this requester
+                'approved' => PurchaseRequest::where('requested_by', Auth::id())
+                    ->where('status', 'approved')
+                    ->count(),
+            ],
+
+            // Recent PRs by this requester
+            'recent_prs' => PurchaseRequest::where('requested_by', Auth::id())
+                ->latest()
+                ->take(5)
+                ->get(['id', 'pr_number', 'status', 'created_at']),
+        ]);
+
     }
 
     public function generatePrNumber()
@@ -272,28 +298,31 @@ public function store(PurchaseRequestRequest $request)
 
     public function print($id)
     {
-        $purchaseRequest = PurchaseRequest::with(['details.product.unit'])->findOrFail($id);
+$purchaseRequest = PurchaseRequest::with(['details.product.unit'])->findOrFail($id);
 
-        $pr = [
-            'id' => $purchaseRequest->id,
-            'pr_number' => $purchaseRequest->pr_number,
-            'purpose' => $purchaseRequest->purpose,
-            'created_at' => $purchaseRequest->created_at,
-            'details' => $purchaseRequest->details->map(function ($detail) {
-                return [
-                    'item' => $detail->product->name ?? '',
-                    'specs' => $detail->product->specs ?? '',
-                    'unit' => $detail->product->unit->unit ?? '',
-                    'quantity' => $detail->quantity,
-                    'unit_price' => $detail->unit_price,
-                ];
-            }),
-        ];
+    $pr = [
+        'id' => $purchaseRequest->id,
+        'pr_number' => $purchaseRequest->pr_number,
+        'purpose' => $purchaseRequest->purpose,
+        'created_at' => $purchaseRequest->created_at,
+        'details' => $purchaseRequest->details->map(function ($detail) {
+            return [
+                'item' => $detail->product->name ?? '',
+                'specs' => $detail->product->specs ?? '',
+                'unit' => $detail->product->unit->unit ?? '',
+                'quantity' => $detail->quantity,
+                'unit_price' => $detail->unit_price,
+            ];
+        }),
+    ];
 
-        return Inertia::render('Requester/PrintPR', [
-            'pr' => $pr,
-            'focal_person' => $purchaseRequest->focal_person,
-        ]);
+    // 👇 Load Blade instead of React for Snappy
+    $pdf = SnappyPdf::loadView('pdf.purchase_request', [
+        'pr' => $pr,
+        'focal_person' => $purchaseRequest->focal_person,
+    ]);
+
+    return $pdf->download("PR-{$purchaseRequest->pr_number}.pdf");
     }
 
     public function sendForApproval(Request $request, $id)

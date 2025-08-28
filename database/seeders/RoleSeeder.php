@@ -25,7 +25,7 @@ class RoleSeeder extends Seeder
                 'approve requests',
                 
             ],
-            'suply_officer' => [
+            'supply_officer' => [
                 'create purchase orders',
             ],
         ];
