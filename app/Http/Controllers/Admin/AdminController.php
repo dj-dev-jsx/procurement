@@ -12,12 +12,34 @@ use Spatie\Permission\Models\Role;
 
 class AdminController extends Controller
 {
-    public function view_users() {
+    public function view_users(Request $request) {
+        $search = $request->input("search");
+        $filters = $request->input("division");
+        $perPage = $request->input("perPage", 10);
         // Eager load division relation
-        $users = User::with('division')->get();
+        $users = User::with('division', 'roles')
+        ->when($search, function($query, $search){
+            $query->where(function ($q) use ($search) {
+                $q->where('firstname', 'like', "%{$search}%")
+                ->orWhere("lastname", "like", "%{$search}%")
+                ->orWhere("middlename", "like", "%{$search}%");
+            });
+        })
+        ->when($filters, function ($query, $filters) {
+            $query->where('division_id', $filters);
+        })
+        ->paginate(10)
+        ->appends($request->all());
+        $divisions = Division::select('id', 'division')->get();
 
         return Inertia::render('Admin/Users', [
             'users' => $users,
+            'filters' => [
+                'search' => $search,
+                'division' => $filters,
+                'divisions' => $divisions,
+                'perPage' => $perPage,
+            ]
         ]);
     }
     public function dashboard() {

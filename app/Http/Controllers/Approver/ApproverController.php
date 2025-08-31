@@ -18,8 +18,83 @@ use Barryvdh\Snappy\Facades\SnappyPdf as PDF;
 class ApproverController extends Controller
 {
     public function dashboard(){
-        return Inertia::render('BacApprover/Dashboard',[
+        $totalPr = PurchaseRequest::count();
+        $approved = PurchaseRequest::where("status", "approved")->count();
+        $pending = PurchaseRequest::where("status", "pending")->count();
+        $rejected = PurchaseRequest::where("status", "rejected")->count();
 
+        $deptData = PurchaseRequest::with('division')
+            ->get()
+            ->groupBy(fn($pr) => $pr->division->division)
+            ->map(function ($prs, $divisionName) {
+                return [
+                    'division' => $divisionName,
+                    'approved' => $prs->filter(fn($pr) => strtolower($pr->status) === 'approved')->count(),
+                    'pending'  => $prs->filter(fn($pr) => strtolower($pr->status) === 'pending')->count(),
+                    'rejected' => $prs->filter(fn($pr) => strtolower($pr->status) === 'rejected')->count(),
+                ];
+            })
+            ->values()
+            ->all();
+        $recentApprovals = PurchaseRequest::with('details')
+            ->orderBy('created_at')
+            ->take(5)
+            ->get()
+            ->map(function($pr){
+                return[
+                    'pr_number' => $pr->pr_number,
+                    'items' => $pr->details->pluck('item')->join(', '),
+                    'status' => $pr->status,
+                    'date' => $pr->created_at->format('M d, Y')
+                ];
+            });
+        
+        return Inertia::render('BacApprover/Dashboard',[
+            'stats' => [
+                [
+                    'label' => 'Total Requests',
+                    'value' => $totalPr,
+                    'icon' => 'ClipboardList',
+                    'color' => 'bg-blue-100 text-blue-600',
+                ],
+                [
+                    'label' => 'Approved',
+                    'value' => $approved,
+                    'icon' => 'CheckCircle2',
+                    'color' => 'bg-green-100 text-green-600',
+                ],
+                [
+                    'label' => 'Pending',
+                    'value' => $pending,
+                    'icon' => 'Hourglass',
+                    'color' => 'bg-yellow-100 text-yellow-600',
+                ],
+                [
+                    'label' => 'Rejected',
+                    'value' => $rejected,
+                    'icon' => 'XCircle',
+                    'color' => 'bg-red-100 text-red-600',
+                ],
+            ],
+            'deptData' => $deptData,
+            'approvalData' => [
+                [
+                    'name' => 'Approved',
+                    'value' => $approved,
+                    'color' => '#16a34a'
+                ],
+                [
+                    'name' => 'Pending',
+                    'value' => $pending,
+                    'color' => '#eab308'
+                ],
+                [
+                    'name' => 'Rejected',
+                    'value' => $rejected,
+                    'color' => '#dc2626'
+                ],
+            ],
+            'recentApprovals' => $recentApprovals
         ]);
     }
 

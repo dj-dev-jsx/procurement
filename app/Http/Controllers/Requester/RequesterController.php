@@ -17,35 +17,95 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Products;
 use App\Models\PurchaseRequestDetail;
 use App\Notifications\PurchaseRequestSubmitted;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class RequesterController extends Controller
 {
     public function dashboard(){
+        $user = Auth::user();
+        $totalPr = PurchaseRequest::where('focal_person_user', $user->id)->count();
+        $approved = PurchaseRequest::where('focal_person_user', $user->id)->where("status", "approved")->count();
+        $pending = PurchaseRequest::where('focal_person_user', $user->id)->where("status", "pending")->count();
+        $rejected = PurchaseRequest::where('focal_person_user', $user->id)->where("status", "rejected")->count();
+
+        $trendData = PurchaseRequest::selectRaw('MONTH(created_at) as month, COUNT(*) as requests')
+            ->where('focal_person_user', $user->id)
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get()
+            ->map(function($item){
+                return [
+                    "month" => Carbon::create()->month($item->month)->format('M'),
+                    "requests" => $item->requests
+                ];
+            });
+
+        $recentRequests = PurchaseRequest::with('details')
+            ->where('focal_person_user', $user->id)
+            ->orderBy('created_at')
+            ->take(5)
+            ->get()
+            ->map(function($pr){
+                return[
+                    'pr_number' => $pr->pr_number,
+                    'items' => $pr->details->pluck('item')->join(', '),
+                    'status' => $pr->status,
+                    'date' => $pr->created_at->format('M d, Y')
+                ];
+            });
+        
         return Inertia::render('Requester/Dashboard', [
             'auth' => [
                 'user' => Auth::user(),
             ],
             'stats' => [
-                // Total PRs by this requester
-                'total' => PurchaseRequest::where('requested_by', Auth::id())->count(),
-
-                // Pending PRs by this requester
-                'pending' => PurchaseRequest::where('requested_by', Auth::id())
-                    ->where('status', 'pending')
-                    ->count(),
-
-                // Approved PRs by this requester
-                'approved' => PurchaseRequest::where('requested_by', Auth::id())
-                    ->where('status', 'approved')
-                    ->count(),
+                [
+                    'label' => 'Total Requests',
+                    'value' => $totalPr,
+                    'icon' => 'ClipboardList',
+                    'color' => 'bg-blue-100 text-blue-600',
+                ],
+                [
+                    'label' => 'Approved',
+                    'value' => $approved,
+                    'icon' => 'CheckCircle2',
+                    'color' => 'bg-green-100 text-green-600',
+                ],
+                [
+                    'label' => 'Pending',
+                    'value' => $pending,
+                    'icon' => 'Hourglass',
+                    'color' => 'bg-yellow-100 text-yellow-600',
+                ],
+                [
+                    'label' => 'Rejected',
+                    'value' => $rejected,
+                    'icon' => 'XCircle',
+                    'color' => 'bg-red-100 text-red-600',
+                ],
             ],
+            'trendData' => $trendData,
+            'statusData' => [
+                [
+                    'name' => 'Approved',
+                    'value' => $approved,
+                    'color' => '#16a34a'
+                ],
+                [
+                    'name' => 'Pending',
+                    'value' => $pending,
+                    'color' => '#eab308'
+                ],
+                [
+                    'name' => 'Rejected',
+                    'value' => $rejected,
+                    'color' => '#dc2626'
+                ]
+                
+            ],
+            'recentRequests' => $recentRequests
 
-            // Recent PRs by this requester
-            'recent_prs' => PurchaseRequest::where('requested_by', Auth::id())
-                ->latest()
-                ->take(5)
-                ->get(['id', 'pr_number', 'status', 'created_at']),
         ]);
 
     }

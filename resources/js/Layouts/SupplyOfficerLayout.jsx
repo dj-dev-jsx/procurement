@@ -94,7 +94,7 @@ export default function SupplyOfficerLayout({ header, children }) {
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-gray-100">
       {/* Mobile Header */}
-      <div className="md:hidden bg-indigo-700 text-white flex items-center justify-between px-4 py-3 shadow-md">
+      <div className="md:hidden bg-gray-900 text-white flex items-center justify-between px-4 py-3 shadow-md">
         <Link href="/"><img src={logo} alt="Logo" className="h-10 w-auto" /></Link>
         <button onClick={() => setSidebarOpen(!sidebarOpen)}>
           {sidebarOpen ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
@@ -233,6 +233,51 @@ export default function SupplyOfficerLayout({ header, children }) {
         <main className="p-6 flex-1 overflow-y-auto bg-gray-300">
           {children}
         </main>
+        {/* <footer className="bg-gray-900 text-gray-300 sticky">
+          <div className="max-w-7xl mx-auto px-6 py-10 grid grid-cols-1 md:grid-cols-3 gap-8">
+            
+            <div className="flex flex-col items-start">
+              <img src={logo} alt="DepEd Logo" className="h-12 mb-2" />
+              <p className="text-gray-400 text-sm">
+                Schools Division Office - Supply & Property Office
+              </p>
+              <p className="text-gray-400 text-sm mt-1">
+                e-Procurement & Inventory Management System
+              </p>
+            </div>
+
+            
+            <div className="flex flex-col">
+              <h4 className="text-white font-semibold mb-2">Quick Links</h4>
+              <Link href={route('supply_officer.dashboard')} className="hover:text-white transition-colors text-sm mb-1">
+                Dashboard
+              </Link>
+              <Link href={route('supply_officer.inventory')} className="hover:text-white transition-colors text-sm mb-1">
+                Inventory
+              </Link>
+              <Link href={route('supply_officer.purchase_orders')} className="hover:text-white transition-colors text-sm mb-1">
+                Purchase Orders
+              </Link>
+              <Link href={route('supply_officer.ris_issuance')} className="hover:text-white transition-colors text-sm mb-1">
+                Issuance
+              </Link>
+            </div>
+
+            
+            <div className="flex flex-col">
+              <h4 className="text-white font-semibold mb-2">Contact</h4>
+              <p className="text-gray-400 text-sm mb-1">Email: info@deped.gov.ph</p>
+              <p className="text-gray-400 text-sm mb-1">Phone: (02) 123-4567</p>
+              <p className="text-gray-400 text-sm mb-1">Address: Ilagan City, Isabela</p>
+            </div>
+          </div>
+
+          
+          <div className="border-t border-gray-700 mt-6 py-4 text-center text-gray-500 text-xs">
+            &copy; {new Date().getFullYear()} Schools Division Office. All rights reserved.
+          </div>
+        </footer> */}
+
       </div>
     </div>
   );

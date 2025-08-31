@@ -80,7 +80,7 @@ export default function AdminLayout({ header, children }) {
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-gray-100">
       {/* Mobile Header */}
-      <div className="md:hidden bg-indigo-700 text-white flex items-center justify-between px-4 py-3 shadow-md">
+      <div className="md:hidden bg-gray-900 text-white flex items-center justify-between px-4 py-3 shadow-md">
         <Link href="/">
           <img src={logo} alt="Logo" className="h-10 w-auto" />
         </Link>
