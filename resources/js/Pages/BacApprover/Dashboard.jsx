@@ -50,15 +50,15 @@ export default function Dashboard({auth, stats, deptData, approvalData, recentAp
                     const Icon = iconMap[stat.icon]; // map string to component
                     return (
                         <Card key={idx} className="rounded-2xl shadow hover:shadow-md transition">
-                        <CardContent className="flex items-center gap-4 p-4">
-                            <div className={`p-3 rounded-xl ${stat.color}`}>
-                            <Icon className="w-6 h-6" />
-                            </div>
-                            <div>
-                            <p className="text-sm text-gray-600">{stat.label}</p>
-                            <h3 className="text-xl font-semibold text-gray-800">{stat.value}</h3>
-                            </div>
-                        </CardContent>
+                            <CardContent className="flex items-center gap-4 p-4">
+                                <div className={`p-3 rounded-xl ${stat.color}`}>
+                                <Icon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                <p className="text-sm text-gray-600">{stat.label}</p>
+                                <h3 className="text-xl font-semibold text-gray-800">{stat.value}</h3>
+                                </div>
+                            </CardContent>
                         </Card>
                     );
                 })}

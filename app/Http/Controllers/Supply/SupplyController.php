@@ -16,6 +16,7 @@ use App\Models\PurchaseRequest;
 use App\Models\RFQ;
 use App\Models\RIS;
 use App\Models\Supplier;
+use App\Models\SupplierCategory;
 use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
@@ -26,11 +27,137 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class SupplyController extends Controller
 {
-    public function dashboard(){
-        return Inertia::render('Supply/Dashboard',[
+    public function dashboard() {
+    $totalStock = Inventory::sum('total_stock');
+    $pendingDeliveries = PurchaseOrder::where("status", "Not yet Delivered")->count();
+    $totalIcs = ICS::count();
+    $totalRis = RIS::count();
+    $totalIcsHigh = ICS::where('type', 'high')->count();
+    $totalIcsLow = ICS::where('type', 'low')->count();
+    $totalPar = PAR::count();
 
+    $totalIssued = $totalIcs + $totalRis + $totalPar;
+    $totalPo = PurchaseOrder::count();
+    $categories = SupplierCategory::all();
+
+    $risActivity = RIS::with(['issuedTo', 'issuedBy', 'inventoryItem'])
+        ->latest('created_at')
+        ->take(5)
+        ->get()
+        ->map(fn($r) => [
+            'id' => $r->ris_number,
+            'action' => "Issued {$r->quantity} {$r->inventoryItem->item_desc}",
+            'status' => 'Processed',
+            'date' => $r->created_at->format('M d, Y'),
         ]);
-    }
+
+    $icsActivity = ICS::with('inventoryItem')
+        ->latest('created_at')
+        ->take(5)
+        ->get()
+        ->map(fn($i) => [
+            'id' => $i->ics_number,
+            'action' => "Received {$i->quantity} {$i->inventoryItem->item_desc}",
+            'status' => 'Processed',
+            'date' => $i->created_at->format('M d, Y'),
+        ]);
+    $parActivity = PAR::with('inventoryItem')
+        ->latest('created_at')
+        ->take(5)
+        ->get()
+        ->map(fn($p) => [
+            'id' => $p->par_number,
+            'action' => "Issued {$p->quantity} {$p->inventoryItem->item_desc}",
+            'status' => 'Processed',
+            'date' => $p->created_at->format('M d, Y'),
+        ]);
+
+    $recentActivity = $risActivity->concat($icsActivity)->concat($parActivity)
+        ->sortByDesc(fn($a) => strtotime($a['date']))
+        ->take(5)
+        ->values();
+
+    $totalStockPerCategory = $categories->map(function ($category) {
+        $qty = Inventory::whereHas('po.details.prDetail.product.supplier_category', function ($query) use ($category) {
+            $query->where('id', $category->id);
+        })->sum('total_stock');
+
+        return [
+            'category' => $category->name,
+            'qty' => $qty,
+        ];
+    });
+
+    return Inertia::render('Supply/Dashboard', [
+        'stats' => [
+            [
+                'label' => 'Total Stock Items',
+                'value' => $totalStock,
+                'icon' => 'Boxes',
+                'color' => 'bg-blue-100 text-blue-600'
+            ],
+            [
+                'label' => 'Pending Deliveries',
+                'value' => $pendingDeliveries,
+                'icon' => 'Truck',
+                'color' => 'bg-yellow-100 text-yellow-600'
+            ],
+            [
+                'label' => 'Total Issued Items',
+                'value' => $totalIssued,
+                'icon' => 'PackageCheck',
+                'color' => 'bg-green-100 text-green-600'
+            ],
+        ],
+        'documents' => [
+            [
+                'label'=> "RIS (Requisition)", 
+                'value'=> $totalRis, 
+                'icon'=> 'ClipboardList', 
+                'link'=> "supply_officer.ris_issuance", 
+                'color'=> "bg-purple-100 text-purple-600" 
+            ],
+            [
+                'label'=> "ICS (High)", 
+                'value'=> $totalIcsHigh, 
+                'icon'=> 'FileSpreadsheet', 
+                'link'=> "supply_officer.ics_issuance_high", 
+                'color'=> "bg-pink-100 text-pink-600" 
+            ],
+            [
+                'label'=> "ICS (Low)", 
+                'value'=> $totalIcsLow, 
+                'icon'=> 'FileSpreadsheet', 
+                'link'=> "supply_officer.ics_issuance_low", 
+                'color'=> "bg-indigo-100 text-indigo-600" 
+            ],
+            [
+                'label'=> "PAR", 
+                'value'=> $totalPar, 
+                'icon'=> 'FileCheck', 
+                'link'=> "supply_officer.par_issuance", 
+                'color'=> "bg-orange-100 text-orange-600" 
+            ],
+            [
+                'label'=> "Purchase Orders", 
+                'value'=> $totalPo, 
+                'icon'=> 'FileText', 
+                'link'=> "supply_officer.purchase_orders", 
+                'color'=> "bg-teal-100 text-teal-600" 
+            ],
+            [
+                'label'=> "Issuance Logs", 
+                'value'=> $totalIssued, 
+                'icon'=> 'Layers', 
+                'link'=> "supply_officer.ris_issuance", 
+                'color'=> "bg-sky-100 text-sky-600" 
+            ],
+        ],
+        'stockData' => $totalStockPerCategory,
+        'recentActivity' => $recentActivity
+    ]);
+}
+
     public function purchase_orders(Request $request){
         $search = $request->input('search');
         $division = $request->input('division');

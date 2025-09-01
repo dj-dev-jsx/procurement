@@ -22,6 +22,12 @@ import {
 } from "recharts";
 
 export default function Dashboard({stats, trendData, statusData, recentRequests}) {
+    const iconMap = {
+        ClipboardList: ClipboardList,
+        CheckCircle2: CheckCircle2,
+        Hourglass: Hourglass,
+        XCircle: XCircle,
+    };
     const { auth } = usePage().props;
 
     return (
@@ -51,26 +57,22 @@ export default function Dashboard({stats, trendData, statusData, recentRequests}
 
             {/* Stats Overview */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                {stats.map((stat, index) => (
-                    <Card
-                        key={index}
-                        className="rounded-2xl shadow hover:shadow-md transition"
-                    >
-                        <CardContent className="flex items-center gap-4 p-4">
-                            <div className={`p-3 rounded-xl ${stat.color}`}>
-                                <stat.icon className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <p className="text-sm text-gray-600">
-                                    {stat.label}
-                                </p>
-                                <h3 className="text-xl font-semibold text-gray-800">
-                                    {stat.value}
-                                </h3>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
+                {stats.map((stat, idx) => {
+                    const Icon = iconMap[stat.icon]; // map string to component
+                    return (
+                        <Card key={idx} className="rounded-2xl shadow hover:shadow-md transition">
+                            <CardContent className="flex items-center gap-4 p-4">
+                                <div className={`p-3 rounded-xl ${stat.color}`}>
+                                <Icon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                <p className="text-sm text-gray-600">{stat.label}</p>
+                                <h3 className="text-xl font-semibold text-gray-800">{stat.value}</h3>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    );
+                })}
             </div>
 
             {/* Data Visualization */}

@@ -25,32 +25,19 @@ import {
     Cell,
 } from "recharts";
 
-export default function Dashboard() {
-    // Example stats (replace with backend data later)
-    const stats = [
-        { label: "Total Stock Items", value: 145, icon: Boxes, color: "bg-blue-100 text-blue-600" },
-        { label: "Low Stock Alerts", value: 8, icon: AlertTriangle, color: "bg-red-100 text-red-600" },
-        { label: "Pending Deliveries", value: 5, icon: Truck, color: "bg-yellow-100 text-yellow-600" },
-        { label: "Issued to Departments", value: 72, icon: PackageCheck, color: "bg-green-100 text-green-600" },
-    ];
+export default function Dashboard({stats, documents, stockData, recentActivity}) {
+    const stockDataArray = Object.values(stockData);
+    const iconMap = {
+        Boxes: Boxes,
+        Truck: Truck,
+        PackageCheck: PackageCheck,
+        ClipboardList: ClipboardList,
+        FileSpreadsheet: FileSpreadsheet,
+        FileCheck: FileCheck,
+        FileText: FileText,
+        Layers: Layers
+    };
 
-    // RIS, ICS, PAR, PO, Issuance quick stats
-    const documents = [
-        { label: "RIS (Requisition)", value: 32, icon: ClipboardList, link: "#", color: "bg-purple-100 text-purple-600" },
-        { label: "ICS (High)", value: 12, icon: FileSpreadsheet, link: "#", color: "bg-pink-100 text-pink-600" },
-        { label: "ICS (Low)", value: 20, icon: FileSpreadsheet, link: "#", color: "bg-indigo-100 text-indigo-600" },
-        { label: "PAR", value: 18, icon: FileCheck, link: "#", color: "bg-orange-100 text-orange-600" },
-        { label: "Purchase Orders", value: 10, icon: FileText, link: "#", color: "bg-teal-100 text-teal-600" },
-        { label: "Issuance Logs", value: 45, icon: Layers, link: "#", color: "bg-sky-100 text-sky-600" },
-    ];
-
-    // Bar chart: Stock Levels by Category
-    const stockData = [
-        { category: "Office Supplies", qty: 50 },
-        { category: "Electronics", qty: 30 },
-        { category: "Furniture", qty: 20 },
-        { category: "Cleaning", qty: 45 },
-    ];
 
     // Pie chart: Requests Status handled by Supply Officer
     const requestStatusData = [
@@ -59,17 +46,11 @@ export default function Dashboard() {
         { name: "On-Hold", value: 5, color: "#dc2626" },
     ];
 
-    const recentActivity = [
-        { id: "REQ-201", action: "Issued 20 Bond Papers", status: "Processed", date: "Aug 29, 2025" },
-        { id: "REQ-202", action: "Laptop Request from IT", status: "Pending", date: "Aug 30, 2025" },
-        { id: "REQ-203", action: "Chairs Delivery to Admin", status: "Processed", date: "Aug 31, 2025" },
-    ];
 
     return (
         <SupplyOfficerLayout header={"Schools Division Office - Ilagan | Dashboard"}>
             <Head title="Dashboard" />
 
-            {/* Welcome Section */}
             <div className="bg-white rounded-2xl shadow p-6 mb-6">
                 <h1 className="text-2xl font-semibold text-gray-800">Welcome Supply Officer!</h1>
                 <p className="text-gray-600">
@@ -77,41 +58,46 @@ export default function Dashboard() {
                 </p>
             </div>
 
-            {/* Stats Overview */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                {stats.map((stat, idx) => (
-                    <Card key={idx} className="rounded-2xl shadow hover:shadow-md transition">
-                        <CardContent className="flex items-center gap-4 p-4">
-                            <div className={`p-3 rounded-xl ${stat.color}`}>
-                                <stat.icon className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <p className="text-sm text-gray-600">{stat.label}</p>
-                                <h3 className="text-xl font-semibold text-gray-800">{stat.value}</h3>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
-
-            {/* Documents Quick Links */}
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Documents & Logs</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
-                {documents.map((doc, idx) => (
-                    <Link href={doc.link} key={idx}>
-                        <Card className="rounded-2xl shadow hover:shadow-lg transition">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                {stats.map((stat, idx) => {
+                    const Icon = iconMap[stat.icon];
+                    return (
+                        <Card key={idx} className="rounded-2xl shadow hover:shadow-md transition">
                             <CardContent className="flex items-center gap-4 p-4">
-                                <div className={`p-3 rounded-xl ${doc.color}`}>
-                                    <doc.icon className="w-6 h-6" />
+                                <div className={`p-3 rounded-xl ${stat.color}`}>
+                                    <Icon className="w-6 h-6" />
                                 </div>
                                 <div>
-                                    <p className="text-sm text-gray-600">{doc.label}</p>
-                                    <h3 className="text-xl font-semibold text-gray-800">{doc.value}</h3>
+                                    <p className="text-sm text-gray-600">{stat.label}</p>
+                                    <h3 className="text-xl font-semibold text-gray-800">{stat.value}</h3>
                                 </div>
                             </CardContent>
                         </Card>
-                    </Link>
-                ))}
+                    )
+                })}
+            </div>
+
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Documents & Logs</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+                {documents.map((doc, idx) => {
+                    const Icon = iconMap[doc.icon];
+                    return (
+                        <Link href={route(doc.link)} key={idx}>
+                            <Card className="rounded-2xl shadow hover:shadow-lg transition">
+                                <CardContent className="flex items-center gap-4 p-4">
+                                    <div className={`p-3 rounded-xl ${doc.color}`}>
+                                        <Icon className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600">{doc.label}</p>
+                                        <h3 className="text-xl font-semibold text-gray-800">{doc.value}</h3>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </Link>
+                    )
+
+                })}
             </div>
 
             {/* Data Visualizations */}
@@ -121,7 +107,7 @@ export default function Dashboard() {
                     <CardContent className="p-4">
                         <h2 className="text-lg font-semibold text-gray-800 mb-4">Stock Levels by Category</h2>
                         <ResponsiveContainer width="100%" height={250}>
-                            <BarChart data={stockData || []}>
+                            <BarChart data={stockDataArray || []}>
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="category" />
                                 <YAxis />
