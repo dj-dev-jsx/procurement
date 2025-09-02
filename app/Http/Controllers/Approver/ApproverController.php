@@ -4,16 +4,20 @@ namespace App\Http\Controllers\Approver;
 
 use App\Http\Controllers\Controller;
 use App\Models\PurchaseRequest;
+use App\Models\PurchaseRequestDetail;
 use App\Models\RFQ;
 use App\Models\RFQDetail;
 use App\Models\Supplier;
 use App\Models\SupplierCategory;
+use App\Models\User;
 use App\Notifications\PurchaseRequestApproved;
+use App\Notifications\PurchaseRequestSentBack;
 use Exception;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Validation\ValidationException;
 use Barryvdh\Snappy\Facades\SnappyPdf as PDF;
+use Illuminate\Support\Facades\Auth;
 
 class ApproverController extends Controller
 {
@@ -312,9 +316,9 @@ public function store_supplier(Request $request)
 
 public function print_rfq($id)
 {
-    $rfq = RFQ::with(['details.supplier', 'purchaseRequest.details.product.unit'])
+    
+    $rfq = RFQ::with(['purchaseRequest.details.product.unit'])
         ->findOrFail($id);
-
     $details = $rfq->purchaseRequest->details->map(function ($detail) {
         return [
             'id' => $detail->id,
@@ -327,7 +331,6 @@ public function print_rfq($id)
         ];
     });
 
-    // You don’t need to pass the logo anymore — just use a fixed path in blade
     $pdf = PDF::loadView('pdf.rfq', [
         'rfq' => $rfq,
         'details' => $details,
@@ -335,49 +338,37 @@ public function print_rfq($id)
 
     return $pdf->inline("RFQ-{$rfq->id}.pdf");
 }
+
 public function print_rfq_per_item($rfqId, $detailId)
 {
-    // Find the parent RFQ
-    $rfq = RFQ::findOrFail($rfqId);
-
-    // Get the RFQ detail with supplier + product/unit
-    $rfqDetail = $rfq->details()
-        ->with(['supplier', 'prDetail.product.unit'])
+    $prDetail = PurchaseRequestDetail::with(['product.unit'])
         ->findOrFail($detailId);
 
     $formattedDetail = [
-        'id' => $rfqDetail->prDetail->id,
-        'item' => $rfqDetail->prDetail->product->name ?? 'N/A',
-        'specs' => $rfqDetail->prDetail->product->specs ?? '',
-        'unit' => $rfqDetail->prDetail->product->unit->unit ?? 'N/A',
-        'quantity' => $rfqDetail->prDetail->quantity,
-        'unit_price' => $rfqDetail->prDetail->unit_price,
-        'total_price' => $rfqDetail->prDetail->quantity * $rfqDetail->prDetail->unit_price,
-        'estimated_bid' => $rfqDetail->estimated_bid,
+        'id' => $prDetail->id,
+        'item' => $prDetail->product->name ?? 'N/A',
+        'specs' => $prDetail->product->specs ?? '',
+        'unit' => $prDetail->product->unit->unit ?? 'N/A',
+        'quantity' => $prDetail->quantity,
+        'unit_price' => $prDetail->unit_price,
+        'total_price' => $prDetail->quantity * $prDetail->unit_price,
     ];
-
-    $supplier = $rfqDetail->supplier;
-
-    // ✅ Pass absolute path for the logo
     $logo = public_path('/deped1.png');
 
-    // Generate PDF from Blade
     $pdf = PDF::loadView('pdf.rfq_per_item', [
-        'rfq' => $rfq,
         'detail' => $formattedDetail,
-        'supplier' => $supplier,
-        'logo' => $logo,
+        'logo' => $logo
     ]);
 
-    return $pdf->inline("RFQ-Item-{$rfq->id}-{$rfqDetail->id}.pdf");
+    return $pdf->inline("RFQ-Item-{$prDetail->id}.pdf");
 }
+
 
 
     public function for_quotations()
     {
         $purchaseRequests = PurchaseRequest::with(['details', 'division', 'focal_person'])
             ->where('status', 'Approved')
-            ->whereHas('rfqs')
             ->get();
 
         return Inertia::render('BacApprover/Quotations', [
@@ -392,7 +383,7 @@ public function print_rfq_per_item($rfqId, $detailId)
         ->findOrFail($id);
 
 
-    $rfqs = RFQ::with('details.supplier')->where('pr_id', $id)->get();
+    $rfqs = RFQ::where('pr_id', $id)->get();
 
 
     $supplierIds = $rfqs->flatMap(function ($rfq) {
@@ -400,7 +391,11 @@ public function print_rfq_per_item($rfqId, $detailId)
     })->unique()->filter()->values(); 
 
 
-    $suppliers = Supplier::whereIn('id', $supplierIds)->get();
+
+    $suppliers = Supplier::with('category')->get();
+    $categories = SupplierCategory::all();
+    
+
 
     $rfqDetails = $rfqs->flatMap(function ($rfq) {
         return $rfq->details->map(function ($detail) use ($rfq) {
@@ -439,22 +434,47 @@ public function print_rfq_per_item($rfqId, $detailId)
         'suppliers' => $suppliers,
         'rfqs' => $rfqs,
         'rfq_details' => $rfqDetails->values(),
+        'categories' => $categories
     ]);
 }
 
 
 public function submit_quoted(Request $request)
 {
-    // For JSON data, validate this way
+    $user = Auth::user();
+
     $data = $request->validate([
-        'rfq_id' => ['required', 'exists:tbl_rfqs,id'],
+        'pr_id' => ['required', 'exists:tbl_purchase_requests,id'],
         'pr_details_id' => ['required', 'exists:tbl_pr_details,id'],
         'supplier_id' => ['required', 'exists:tbl_suppliers,id'],
         'quoted_price' => ['nullable', 'numeric', 'min:0'],
+        'rfq_id' => ['nullable', 'exists:tbl_rfqs,id'], // optional rfq_id
     ]);
+
+    // Use provided rfq_id if exists and belongs to user, else create/find
+    if (!empty($data['rfq_id'])) {
+        $rfq = RFQ::where('id', $data['rfq_id'])
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (!$rfq) {
+            return back()->withErrors(['rfq_id' => 'Invalid RFQ ID.']);
+        }
+    } else {
+        $rfq = RFQ::firstOrCreate(
+            [
+                'pr_id' => $data['pr_id'],
+                'user_id' => $user->id,
+            ],
+            [
+                'grouped' => true,
+            ]
+        );
+    }
+
     RFQDetail::updateOrCreate(
         [
-            'rfq_id' => $data['rfq_id'],
+            'rfq_id' => $rfq->id,
             'pr_details_id' => $data['pr_details_id'],
             'supplier_id' => $data['supplier_id'],
         ],
@@ -465,20 +485,44 @@ public function submit_quoted(Request $request)
 
     return back()->with('success', 'Quoted price submitted successfully.');
 }
+
 public function submit_bulk_quoted(Request $request)
 {
+    $user = Auth::user();
+
     $data = $request->validate([
         'quotes' => 'required|array|min:1',
-        'quotes.*.rfq_id' => 'required|exists:tbl_rfqs,id',
+        'quotes.*.pr_id' => 'required|exists:tbl_purchase_requests,id',
         'quotes.*.pr_details_id' => 'required|exists:tbl_pr_details,id',
         'quotes.*.supplier_id' => 'required|exists:tbl_suppliers,id',
         'quotes.*.quoted_price' => 'nullable|numeric|min:0',
+        'quotes.*.rfq_id' => 'nullable|exists:tbl_rfqs,id', // optional
     ]);
 
     foreach ($data['quotes'] as $quote) {
+        // Use provided rfq_id if valid, else create/find
+        if (!empty($quote['rfq_id'])) {
+            $rfq = RFQ::where('id', $quote['rfq_id'])
+                ->where('user_id', $user->id)
+                ->first();
+
+            if (!$rfq) {
+                return back()->withErrors(['rfq_id' => 'Invalid RFQ ID.']);
+            }
+        } else {
+            $rfq = RFQ::firstOrCreate(
+                [
+                    'pr_id' => $quote['pr_id'],
+                    'user_id' => $user->id,
+                ],
+                [
+                    'grouped' => true,
+                ]
+            );
+        }
         RFQDetail::updateOrCreate(
             [
-                'rfq_id' => $quote['rfq_id'],
+                'rfq_id' => $rfq->id,
                 'pr_details_id' => $quote['pr_details_id'],
                 'supplier_id' => $quote['supplier_id'],
             ],
@@ -490,6 +534,7 @@ public function submit_bulk_quoted(Request $request)
 
     return back()->with('success', 'All quoted prices submitted successfully.');
 }
+
 
 
     public function abstract_of_quotations($prId)
@@ -613,6 +658,28 @@ public function printAOQ($id, $pr_detail_id = null)
 
     return $pdf->inline('AOQ_full_'.$id.'.pdf');
 }
+public function send_back(Request $request, $id)
+{
+    $request->validate([
+        'reason' => 'required|string|max:1000',
+    ]);
+
+    $pr = PurchaseRequest::findOrFail($id);
+
+    // Update PR
+    $pr->is_sent = false;
+    $pr->send_back_reason = $request->reason; 
+    $pr->save();
+
+    // Find the requester (make sure focal_person_user is a valid user_id)
+    $requester = User::findOrFail($pr->focal_person_user);
+
+    // Send notification
+    $requester->notify(new PurchaseRequestSentBack($pr, $request->reason));
+
+    return back()->with('success', 'PR sent back with reason.');
+}
+
 
 
 

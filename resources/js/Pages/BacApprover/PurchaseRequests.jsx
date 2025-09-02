@@ -11,7 +11,7 @@ export default function PurchaseRequests({ purchaseRequests, filters = {} }) {
   useEffect(() => {
     const delay = setTimeout(() => {
       router.get(
-        route("approver.purchase_requests"),
+        route("bac_approver.purchase_requests"),
         { prNumber, focalPerson, division },
         { preserveState: true, preserveScroll: true, replace: true }
       );

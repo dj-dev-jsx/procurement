@@ -12,6 +12,7 @@ import { BellAlertIcon, CheckCircleIcon, ClipboardDocumentListIcon, EyeIcon, Plu
 import NavLink from '@/Components/NavLink';
 import Dropdown from '@/Components/Dropdown';
 import logo from '../src/deped1.png';
+import usePolling from "@/hooks/usePolling";
 
 // function PurchaseRequestsDropdown({ isSidebarCollapsed }) {
 //   const [isOpen, setIsOpen] = useState(false);
@@ -68,6 +69,9 @@ export default function RequesterLayout({ header, children }) {
   const [showFlash, setShowFlash] = useState(false);
   const [prevUnreadCount, setPrevUnreadCount] = useState(0);
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [showReasonModal, setShowReasonModal] = useState(false);
+  const [selectedReason, setSelectedReason] = useState("");
+
 
 
   const notificationsRef = useRef(null); // <-- NEW
@@ -140,17 +144,26 @@ useEffect(() => {
     hour12: true,
   });
 
-  const markAsRead = async (id) => {
+  const markAsRead = async (id, notification) => {
     try {
       await axios.post(`/notifications/${id}/read`);
       setNotifications((prevNotifications) =>
-        prevNotifications.map((n) => n.id === id ? { ...n, read: true } : n)
+        prevNotifications.map((n) =>
+          n.id === id ? { ...n, read: true } : n
+        )
       );
-      Inertia.visit(route('bac_approver.for_review'));
+
+      if (notification.data?.reason) {
+        setSelectedReason(notification.data.reason);
+        setShowReasonModal(true);
+      } else {
+        Inertia.visit(route('bac_approver.for_review'));
+      }
     } catch (error) {
       console.error('Failed to mark notification as read:', error);
     }
   };
+
 
   return (
     <>
@@ -279,12 +292,13 @@ useEffect(() => {
                       .slice(0, 10)
                       .map((n) => (
                         <li
-                          key={n.id}
-                          onClick={() => markAsRead(n.id)}
-                          className={`flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition duration-150 ${
-                            n.read ? 'bg-white text-gray-500' : 'bg-gray-50 text-gray-900 font-semibold'
-                          }`}
-                        >
+                            key={n.id}
+                            onClick={() => markAsRead(n.id, n)}
+                            className={`flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition duration-150 ${
+                              n.read ? 'bg-white text-gray-500' : 'bg-gray-50 text-gray-900 font-semibold'
+                            }`}
+                          >
+
                           <div className="flex-shrink-0 mt-1">
                             {n.read ? (
                               <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -375,6 +389,22 @@ useEffect(() => {
         <main className="p-6 flex-1 overflow-y-auto bg-gray-300">{children}</main>
       </div>
     </div>
+    {showReasonModal && (
+      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-[10000]">
+        <div className="bg-white rounded-lg shadow-lg p-6 w-96">
+          <h2 className="text-lg font-semibold mb-3">Reason for Send Back</h2>
+          <p className="text-gray-700 whitespace-pre-line">{selectedReason}</p>
+          <div className="mt-4 text-right">
+            <button
+              onClick={() => setShowReasonModal(false)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
     </>
   );

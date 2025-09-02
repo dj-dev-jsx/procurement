@@ -432,6 +432,16 @@ $purchaseRequest = PurchaseRequest::with(['details.product.unit'])->findOrFail($
 
         return redirect()->back()->with('success', 'Item deleted successfully.');
     }
+    public function updatePrice(Request $request, Products $product)
+    {
+        $validated = $request->validate([
+            'default_price' => 'required|numeric|min:0',
+        ]);
+
+        $product->update($validated);
+
+        return back()->with('success', 'Product price updated!');
+    }
 
 
 

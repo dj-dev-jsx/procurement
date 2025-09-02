@@ -4,6 +4,7 @@ import { Head, router, usePage } from "@inertiajs/react";
 import { useState, useEffect } from "react";
 import Swal from "sweetalert2";
 
+
 export default function ManageRequests({ purchaseRequests, search: initialSearch, month: initialMonth }) {
 const { flash } = usePage().props;
 
@@ -206,7 +207,7 @@ const { flash } = usePage().props;
                         onClick={() => handleSendForApproval(pr.id)}
                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-md text-sm"
                       >
-                        Send Approved Form
+                        Send For Approval
                       </button>
                     )}
                     <button

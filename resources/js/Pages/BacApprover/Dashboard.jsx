@@ -20,6 +20,7 @@ import {
     PieChart,
     Pie,
     Cell,
+    LabelList,
 } from "recharts";
 
 export default function Dashboard({auth, stats, deptData, approvalData, recentApprovals}) {
@@ -71,15 +72,37 @@ export default function Dashboard({auth, stats, deptData, approvalData, recentAp
                     <CardContent className="p-4">
                         <h2 className="text-lg font-semibold text-gray-800 mb-4">Requests by Division</h2>
                         <ResponsiveContainer width="100%" height={250}>
-                            <BarChart data={deptData}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="division" />
-                                <YAxis />
-                                <Tooltip />
-                                <Bar dataKey="approved" fill="#16a34a" />
-                                <Bar dataKey="pending" fill="#eab308" />
-                                <Bar dataKey="rejected" fill="#dc2626" />
-                            </BarChart>
+                        <BarChart width={500} height={300} data={deptData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="division" />
+                            <YAxis />
+                            <Tooltip />
+
+                            <Bar dataKey="approved" fill="#16a34a">
+                                <LabelList
+                                dataKey="approved"
+                                position="insideTop"
+                                style={{ fontSize: 14, fontWeight: 600, fill: "#fff" }}
+                                />
+                            </Bar>
+
+                            <Bar dataKey="pending" fill="#eab308">
+                                <LabelList
+                                dataKey="pending"
+                                position="insideTop"
+                                style={{ fontSize: 14, fontWeight: 600, fill: "#fff" }}
+                                />
+                            </Bar>
+
+                            <Bar dataKey="rejected" fill="#dc2626">
+                                <LabelList
+                                dataKey="rejected"
+                                position="insideTop"
+                                style={{ fontSize: 14, fontWeight: 600, fill: "#fff" }}
+                                />
+                            </Bar>
+                        </BarChart>
+
                         </ResponsiveContainer>
                     </CardContent>
                 </Card>
@@ -96,6 +119,7 @@ export default function Dashboard({auth, stats, deptData, approvalData, recentAp
                                     cy="50%"
                                     outerRadius={80}
                                     dataKey="value"
+                                    label={({ name, value }) => `${name}: ${value}`}
                                 >
                                     {approvalData.map((entry, idx) => (
                                         <Cell key={`cell-${idx}`} fill={entry.color} />

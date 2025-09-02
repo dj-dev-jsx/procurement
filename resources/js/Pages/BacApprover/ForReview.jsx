@@ -149,9 +149,7 @@ export default function ForReview({ sentPurchaseRequests, filters = {}, flash })
                         >
                           View Form
                         </button>
-
-                        {/* Only show Approve button if not already approved */}
-                        {pr.status.toLowerCase() !== "approved" && (
+                        {/* {pr.status.toLowerCase() !== "approved" && (
                           <button
                             onClick={async () => {
                               const result = await Swal.fire({
@@ -172,7 +170,7 @@ export default function ForReview({ sentPurchaseRequests, filters = {}, flash })
                           >
                             Approve
                           </button>
-                        )}
+                        )} */}
                       </td>
 
                   </tr>

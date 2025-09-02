@@ -19,6 +19,7 @@ import {
     PieChart,
     Pie,
     Cell,
+    Legend,
 } from "recharts";
 
 export default function Dashboard({stats, trendData, statusData, recentRequests}) {
@@ -95,6 +96,7 @@ export default function Dashboard({stats, trendData, statusData, recentRequests}
                                     stroke="#2563eb"
                                     strokeWidth={3}
                                     dot={{ r: 5 }}
+                                    label
                                 />
                             </LineChart>
                         </ResponsiveContainer>
@@ -108,25 +110,25 @@ export default function Dashboard({stats, trendData, statusData, recentRequests}
                             Status Breakdown
                         </h2>
                         <ResponsiveContainer width="100%" height={250}>
-                            <PieChart>
-                                <Pie
-                                    data={statusData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={50}
-                                    outerRadius={80}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {statusData.map((entry, index) => (
-                                        <Cell
-                                            key={`cell-${index}`}
-                                            fill={entry.color}
-                                        />
-                                    ))}
-                                </Pie>
-                                <Tooltip />
-                            </PieChart>
+                        <PieChart>
+                            <Pie
+                                data={statusData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={50}
+                                outerRadius={80}
+                                paddingAngle={5}
+                                dataKey="value"
+                                label={({ name, value }) => `${name}: ${value}`}
+                            >
+                                {statusData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                                ))}
+                            </Pie>
+                            <Tooltip />
+                        </PieChart>
+
+
                         </ResponsiveContainer>
                         <div className="flex justify-center gap-6 mt-4">
                             {statusData.map((s, idx) => (

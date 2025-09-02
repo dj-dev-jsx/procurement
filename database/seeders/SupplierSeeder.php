@@ -19,7 +19,7 @@ class SupplierSeeder extends Seeder
 
         DB::table('tbl_suppliers')->insert([
             [
-                'item' => 'Computer Parts',
+            
                 'category_id' => $itEquipmentId,
                 'address' => '123 Tech Avenue, Quezon City',
                 'tin_num' => '123-456-789',
@@ -29,7 +29,7 @@ class SupplierSeeder extends Seeder
                 'updated_at' => now(),
             ],
             [
-                'item' => 'Office Papers',
+            
                 'category_id' => $officeSuppliesId,
                 'address' => '456 Paper Lane, Manila',
                 'tin_num' => '987-654-321',
@@ -39,7 +39,7 @@ class SupplierSeeder extends Seeder
                 'updated_at' => now(),
             ],
             [
-                'item' => 'Office Chairs',
+            
                 'category_id' => $furnitureId,
                 'address' => '789 Furniture Blvd, Makati',
                 'tin_num' => '111-222-333',
@@ -47,9 +47,8 @@ class SupplierSeeder extends Seeder
                 'representative_name' => 'Andres Bonifacio',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            ], 
             [
-                'item' => 'Laptops',
                 'category_id' => $itEquipmentId,
                 'address' => '88 Silicon Street, Pasig',
                 'tin_num' => '222-333-444',
@@ -59,7 +58,6 @@ class SupplierSeeder extends Seeder
                 'updated_at' => now(),
             ],
             [
-                'item' => 'Printers',
                 'category_id' => $itEquipmentId,
                 'address' => '99 Ink Road, Mandaluyong',
                 'tin_num' => '333-444-555',
@@ -79,7 +77,7 @@ class SupplierSeeder extends Seeder
                 'updated_at' => now(),
             ],
             [
-                'item' => 'Conference Tables',
+                
                 'category_id' => $furnitureId,
                 'address' => '77 Office Park, Taguig',
                 'tin_num' => '555-666-777',
@@ -89,7 +87,6 @@ class SupplierSeeder extends Seeder
                 'updated_at' => now(),
             ],
             [
-                'item' => 'Desktops',
                 'category_id' => $itEquipmentId,
                 'address' => '321 Silicon Valley, QC',
                 'tin_num' => '666-777-888',
@@ -99,7 +96,6 @@ class SupplierSeeder extends Seeder
                 'updated_at' => now(),
             ],
             [
-                'item' => 'Whiteboards',
                 'category_id' => $officeSuppliesId,
                 'address' => '654 Marker Street, Manila',
                 'tin_num' => '777-888-999',
@@ -109,7 +105,6 @@ class SupplierSeeder extends Seeder
                 'updated_at' => now(),
             ],
             [
-                'item' => 'Filing Cabinets',
                 'category_id' => $furnitureId,
                 'address' => '987 Steel Lane, Pasay',
                 'tin_num' => '888-999-000',

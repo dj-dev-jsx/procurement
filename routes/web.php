@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Supply\SupplyController;
+use App\Models\PurchaseRequest;
 use Illuminate\Support\Facades\Auth;
 
 Route::get('/', function () {
@@ -68,6 +69,7 @@ Route::middleware(['auth', 'role:requester'])->prefix('requester')->group(functi
     Route::delete('/delete_details/{detailId}', [RequesterController::class, 'delete_details'])->name('requester.delete_details');
     Route::get('/print/{id}', [RequesterController::class, 'print'])->name('requester.print');
     Route::post('/requests/{id}/send-for-approval', [RequesterController::class, 'sendForApproval'])->name('requester.pr.send_for_approval');
+    Route::put('/{product}/update-price', [RequesterController::class, 'updatePrice'])->name('requester.update_price');
 });
 
 // Approver routes
@@ -90,6 +92,7 @@ Route::middleware(['auth', 'role:bac_approver'])->prefix('bac_approver')->group(
     Route::post('/mark-winner/{id}/{pr_detail_id?}', [ApproverController::class, 'markWinner'])->name('bac_approver.mark_winner');
     Route::get('/approver/print_aoq/{id}/{pr_detail_id?}', [ApproverController::class, 'printAOQ'])->name('bac_approver.print_aoq');
     Route::post('/store_supplier', [ApproverController::class, 'store_supplier'])->name('bac_approver.store_supplier');
+    Route::post('/requests/{id}/send_back', [ApproverController::class, 'send_back'])->name('requester.send_back');
 });
 
 // Supply Routes
@@ -126,6 +129,12 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
+
+Route::get('/updates', function () {
+    return response()->json([
+        'purchase_requests' => PurchaseRequest::latest()->take(10)->get(),
+    ]);
+})->middleware('auth:sanctum');
 
 // Auth scaffolding
 require __DIR__.'/auth.php';

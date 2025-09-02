@@ -4,10 +4,12 @@ import { Head, useForm, usePage } from "@inertiajs/react";
 import { User, FileText, ClipboardList, Building2, UserPlus, SendHorizonalIcon } from "lucide-react";
 import Swal from 'sweetalert2';
 import { useState, useMemo } from "react";
+import { router } from "@inertiajs/react";
 
 function ProductTable({ products, handleProductSelect }) {
     const [search, setSearch] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
+    const [editedPrices, setEditedPrices] = useState({}); // track changes
     const itemsPerPage = 10;
 
     const filteredProducts = useMemo(() => {
@@ -24,12 +26,40 @@ function ProductTable({ products, handleProductSelect }) {
         return filteredProducts.slice(start, start + itemsPerPage);
     }, [filteredProducts, currentPage]);
 
-    const handlePrev = () => {
-        setCurrentPage((prev) => Math.max(prev - 1, 1));
+    const handlePrev = () => setCurrentPage((prev) => Math.max(prev - 1, 1));
+    const handleNext = () => setCurrentPage((prev) => Math.min(prev + 1, totalPages));
+
+    const handlePriceInputChange = (id, newPrice) => {
+        setEditedPrices((prev) => ({
+            ...prev,
+            [id]: newPrice, // store the new price temporarily
+        }));
     };
 
-    const handleNext = () => {
-        setCurrentPage((prev) => Math.min(prev + 1, totalPages));
+    const handlePriceSave = (id) => {
+        const newPrice = parseFloat(editedPrices[id]);
+        if (isNaN(newPrice)) return;
+
+        router.put(
+            route("requester.update_price", id),
+            { default_price: newPrice },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    console.log("Price updated successfully!");
+                    // clear the saved change so button disappears
+                    setEditedPrices((prev) => {
+                        const updated = { ...prev };
+                        delete updated[id];
+                        return updated;
+                    });
+                },
+                onError: (errors) => {
+                    console.error(errors);
+                },
+            }
+        );
     };
 
     return (
@@ -38,7 +68,7 @@ function ProductTable({ products, handleProductSelect }) {
             <div className="flex items-center justify-between mb-3">
                 <h4 className="text-xl font-semibold text-gray-800">Available Products</h4>
                 <NavLink
-                     href={route("requester.create_product")}
+                    href={route("requester.create_product")}
                     className="text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition duration-200"
                 >
                     Add New Product
@@ -52,7 +82,7 @@ function ProductTable({ products, handleProductSelect }) {
                     value={search}
                     onChange={(e) => {
                         setSearch(e.target.value);
-                        setCurrentPage(1); // reset to page 1 on search
+                        setCurrentPage(1);
                     }}
                     placeholder="Search by item name or specifications..."
                     className="w-full md:w-1/3 px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring focus:border-blue-400"
@@ -77,8 +107,28 @@ function ProductTable({ products, handleProductSelect }) {
                                 <tr key={product.id} className="hover:bg-gray-50">
                                     <td className="px-3 py-2 border">{product.name}</td>
                                     <td className="px-3 py-2 border">{product.specs}</td>
-                                    <td className="px-3 py-2 border">{product.unit?.unit || '-'}</td>
-                                    <td className="px-3 py-2 border">{Number(product.default_price).toFixed(2)}</td>
+                                    <td className="px-3 py-2 border">{product.unit?.unit || "-"}</td>
+                                    <td className="px-3 py-2 border flex items-center gap-2">
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            defaultValue={product.default_price}
+                                            onChange={(e) =>
+                                                handlePriceInputChange(product.id, e.target.value)
+                                            }
+                                            className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-center focus:ring-2 focus:ring-blue-500"
+                                        />
+                                        {editedPrices[product.id] !== undefined && (
+                                            <button
+                                                type="button"   // 👈 prevent triggering the parent form submit
+                                                onClick={() => handlePriceSave(product.id)}
+                                                className="text-xs bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded transition"
+                                            >
+                                                Save
+                                            </button>
+                                        )}
+
+                                    </td>
                                     <td className="px-3 py-2 border text-center">
                                         <button
                                             type="button"
@@ -102,7 +152,7 @@ function ProductTable({ products, handleProductSelect }) {
                 </table>
             </div>
 
-            {/* Pagination Controls */}
+            {/* Pagination */}
             {totalPages > 1 && (
                 <div className="flex justify-center items-center gap-4 mt-4">
                     <button
@@ -135,6 +185,8 @@ function ProductTable({ products, handleProductSelect }) {
         </div>
     );
 }
+
+
 function ProductModal({ isOpen, onClose, onConfirm, product }) {
     const [quantity, setQuantity] = useState("");
 

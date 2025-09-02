@@ -23,6 +23,7 @@ import {
     PieChart,
     Pie,
     Cell,
+    LabelList,
 } from "recharts";
 
 export default function Dashboard({stats, documents, stockData, recentActivity}) {
@@ -107,12 +108,19 @@ export default function Dashboard({stats, documents, stockData, recentActivity})
                     <CardContent className="p-4">
                         <h2 className="text-lg font-semibold text-gray-800 mb-4">Stock Levels by Category</h2>
                         <ResponsiveContainer width="100%" height={250}>
-                            <BarChart data={stockDataArray || []}>
+                            <BarChart width={500} height={300} data={stockDataArray || []}>
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="category" />
                                 <YAxis />
                                 <Tooltip />
-                                <Bar dataKey="qty" fill="#2563eb" />
+
+                                <Bar dataKey="qty" fill="#2563eb">
+                                    <LabelList
+                                    dataKey="qty"
+                                    position="insideTop" // you can also try "insideBottom", "center"
+                                    style={{ fontSize: 14, fontWeight: 600, fill: "#fff" }}
+                                    />
+                                </Bar>
                             </BarChart>
                         </ResponsiveContainer>
                     </CardContent>
@@ -131,6 +139,7 @@ export default function Dashboard({stats, documents, stockData, recentActivity})
                                     cx="50%"
                                     cy="50%"
                                     outerRadius={80}
+                                    label={({ name, value }) => `${name}: ${value}`}
                                 >
                                     {requestStatusData.map((entry, idx) => (
                                         <Cell key={`cell-${idx}`} fill={entry.color} />
