@@ -67,7 +67,6 @@ class SupplierSeeder extends Seeder
                 'updated_at' => now(),
             ],
             [
-                'item' => 'Stationery',
                 'category_id' => $officeSuppliesId,
                 'address' => '21 Paper Ave, Caloocan',
                 'tin_num' => '444-555-666',

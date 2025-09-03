@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Approver;
 
 use App\Http\Controllers\Controller;
+use App\Models\BacCommittee;
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestDetail;
 use App\Models\RFQ;
@@ -550,58 +551,61 @@ public function submit_bulk_quoted(Request $request)
             ->where('rfq_id', $rfq->id)
             ->get()
             ->groupBy('pr_details_id');
+        $committee = BacCommittee::with('members')
+        ->where('committee_status', 'active')
+        ->first();
 
         return Inertia::render('BacApprover/AbstractOfQuotations', [
             'rfq' => $rfq,
             'groupedDetails' => $rfqDetails,
+            'committee' => $committee
         ]);
     }
-    public function markWinner(Request $request, $id, $pr_detail_id = null)
-    {
+public function markWinner(Request $request, $id, $pr_detail_id = null)
+{
     $supplierId = $request->input('supplier_id');
+    $remarks = $request->input('remarks'); // ✅ capture remarks
 
-    // Validate that a supplier_id was actually sent with the request.
     if (!$supplierId) {
         return back()->with('error', 'A supplier was not specified.');
     }
 
     if ($pr_detail_id) {
         // --- PER-ITEM WINNER LOGIC ---
-        // This block will now execute correctly.
-
-        // First, unmark any previous winner for this specific item on this RFQ.
         RFQDetail::where('rfq_id', $id)
             ->where('pr_details_id', $pr_detail_id)
             ->update(['is_winner' => false]);
 
-        // Now, find the specific quote for the item from the specified supplier.
         $quoteToMark = RFQDetail::where('rfq_id', $id)
             ->where('pr_details_id', $pr_detail_id)
             ->where('supplier_id', $supplierId)
             ->first();
 
-        // Only if we find that exact quote, mark it as the winner.
         if ($quoteToMark) {
             $quoteToMark->is_winner = true;
+            $quoteToMark->remarks = $remarks;
             $quoteToMark->save();
         } else {
             return back()->with('error', 'Could not find the specified quote to mark as winner.');
         }
-
     } else {
         // --- FULL PR WINNER LOGIC ---
+        RFQDetail::where('rfq_id', $id)->update([
+            'is_winner' => false,
+            'remarks' => null,
+        ]);
 
-        // Unmark all winners for the entire RFQ to reset the state.
-        RFQDetail::where('rfq_id', $id)->update(['is_winner' => false]);
-
-        // Mark all items from the chosen supplier as winners.
         RFQDetail::where('rfq_id', $id)
             ->where('supplier_id', $supplierId)
-            ->update(['is_winner' => true]);
+            ->update([
+                'is_winner' => true,
+                'remarks' => $remarks, // ✅ save remarks
+            ]);
     }
 
     return back()->with('success', 'Winner has been successfully updated.');
 }
+
 public function printAOQ($id, $pr_detail_id = null)
 {
     $rfq = RFQ::with([
@@ -645,11 +649,13 @@ public function printAOQ($id, $pr_detail_id = null)
             return [
                 'supplier'     => $quotes->first()->supplier,
                 'total_amount' => $quotes->sum('quoted_price'),
+                'is_winner'    => $quotes->first()->is_winner, // ✅ add this
             ];
         })
         ->sortBy('total_amount')
         ->take(3)
         ->values();
+
 
     $pdf = PDF::loadView('pdf.aoq_full', [
         'rfq'      => $rfq,
@@ -680,7 +686,32 @@ public function send_back(Request $request, $id)
     return back()->with('success', 'PR sent back with reason.');
 }
 
+public function delete_quoted(Request $request)
+    {
+        $request->validate([
+            'pr_id' => 'required|integer',
+            'pr_details_id' => 'required|integer',
+            'supplier_id' => 'required|integer',
+        ]);
 
+        try {
+            $deleted = RFQDetail::whereHas('rfq', function ($q) use ($request) {
+                    $q->where('pr_id', $request->pr_id);
+                })
+                ->where('pr_details_id', $request->pr_details_id)
+                ->where('supplier_id', $request->supplier_id)
+                ->delete();
+
+            if ($deleted) {
+                return response()->json(['message' => 'Quoted price deleted successfully.'], 200);
+            }
+
+            return response()->json(['message' => 'Quoted price not found.'], 404);
+
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error deleting quoted price: ' . $e->getMessage()], 500);
+        }
+    }
 
 
 }

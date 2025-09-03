@@ -4,6 +4,7 @@ import {
   FilePlus2,
   CheckCircle2,
   Save,
+  Trash2,
 } from "lucide-react";
 import ApproverLayout from "@/Layouts/ApproverLayout";
 import { Head, router, useForm } from "@inertiajs/react";
@@ -144,7 +145,7 @@ const handlePriceChange = (value, detailId, supplierId) => {
 
 
   // Submit single quoted price
-const handleSubmit = (detailId, supplierId, quoted_price_to_submit) => {
+const handleSubmit = (detailId, supplierId, quoted_price_to_submit, editingKey = null) => {
   const final_quoted_price = quoted_price_to_submit === "" ? null : quoted_price_to_submit;
 
   const payload = {
@@ -154,13 +155,23 @@ const handleSubmit = (detailId, supplierId, quoted_price_to_submit) => {
     quoted_price: final_quoted_price,
   };
 
-  console.log("Payload being submitted:", payload);
+  const submittingKey = editingKey || `${detailId}-${supplierId}`;
+  setSubmittingId(submittingKey);
 
   router.post(route("bac_approver.submit_quoted"), payload, {
     preserveScroll: true,
     onSuccess: () => {
-      console.log("Submitted successfully");
       setSubmittingId(null);
+
+      // ✅ exit edit mode if we were editing
+      if (editingKey) {
+        setEditingQuotes((prev) => {
+          const next = { ...prev };
+          delete next[editingKey];
+          return next;
+        });
+      }
+
       showDialog({
         title: "Submitted!",
         message: "Quoted price submitted successfully.",
@@ -168,7 +179,6 @@ const handleSubmit = (detailId, supplierId, quoted_price_to_submit) => {
       });
     },
     onError: (errors) => {
-      console.error("Error submitting quoted price", errors);
       setSubmittingId(null);
       showDialog({
         title: "Oops!",
@@ -178,6 +188,7 @@ const handleSubmit = (detailId, supplierId, quoted_price_to_submit) => {
     },
   });
 };
+
 
 
   // Confirm bulk submit
@@ -345,7 +356,6 @@ const selectedItemCategoryName = selectedItem?.product?.supplier_category?.name 
 const filteredSuppliers = supplierList
   .filter(supplier => {
     if (showAllSuppliers || !filterCategoryId) return true;
-    // Ensure we compare the same type (string vs number)
     return String(supplier.category_id) === String(filterCategoryId);
   })
   .filter(supplier => {
@@ -355,7 +365,14 @@ const filteredSuppliers = supplierList
       supplier.company_name?.toLowerCase().includes(q) ||
       supplier.address?.toLowerCase().includes(q)
     );
+  })
+  .filter(supplier => {
+    // 🚫 Exclude if this supplier already quoted for the selected item
+    return !rfq_details.some(
+      (q) => q.pr_details_id === selectedItemId && q.supplier_id === supplier.id
+    );
   });
+
   useEffect(() => {
     setCurrentPage(1);
   }, [showAllSuppliers, filterCategoryId]);
@@ -371,6 +388,51 @@ const filteredSuppliers = supplierList
   const indexOfFirst = indexOfLast - itemsPerPage;
   const currentSuppliers = filteredSuppliers.slice(indexOfFirst, indexOfLast);
   const [editingQuotes, setEditingQuotes] = useState({});
+
+  const handleDeleteQuote = (detailId, supplierId, uniqueId) => {
+    setSubmittingId(uniqueId);
+
+    router.delete(route("bac_approver.delete_quoted"), {
+      data: {
+        pr_id: pr.id,
+        pr_details_id: detailId,
+        supplier_id: supplierId,
+      },
+      preserveScroll: true,
+      onSuccess: () => {
+        setSubmittingId(null);
+
+        // Reset local state
+        setQuotedPrices((prev) => {
+          const next = { ...prev };
+          delete next[uniqueId];
+          return next;
+        });
+        setEditingQuotes((prev) => {
+          const next = { ...prev };
+          delete next[uniqueId];
+          return next;
+        });
+
+        showDialog({
+          title: "Deleted!",
+          message: "Quoted price removed successfully.",
+          type: "success",
+        });
+      },
+      onError: () => {
+        setSubmittingId(null);
+        showDialog({
+          title: "Error!",
+          message: "Could not delete quoted price.",
+          type: "error",
+        });
+      },
+    });
+  };
+  const [warningDialogOpen, setWarningDialogOpen] = useState(false);
+const [skippedItems, setSkippedItems] = useState([]);
+
 
   return (
     <ApproverLayout>
@@ -446,10 +508,20 @@ const filteredSuppliers = supplierList
                         <form
                           key={uniqueId}
                           onSubmit={(e) => {
-                            e.preventDefault();
-                            const latestValue = quotedPrices[uniqueId] ?? "";
-                            confirmSubmit(e, detail.id, supplierId, latestValue);
-                          }}
+                              e.preventDefault();
+                              const uniqueId = `${detail.id}-${supplierId}`;
+                              const latestValue = quotedPrices[uniqueId] ?? "";
+                              const isEditing = !!editingQuotes[uniqueId];
+
+                              if (alreadySubmitted && isEditing) {
+                                // ✅ Save immediately, no confirmation dialog
+                                handleSubmit(detail.id, supplierId, latestValue, uniqueId);
+                              } else {
+                                // First-time submit still asks for confirmation
+                                confirmSubmit(e, detail.id, supplierId, latestValue);
+                              }
+                            }}
+
                           className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center mt-4"
                         >
                           <div className="md:col-span-4">
@@ -461,56 +533,93 @@ const filteredSuppliers = supplierList
                               type="number"
                               step="0.01"
                               placeholder="₱ Quoted Price"
-                              disabled={alreadySubmitted}
+                              disabled={alreadySubmitted && !editingQuotes[uniqueId]}  // ✅ only lock when not editing
                               value={
-                                alreadySubmitted
+                                alreadySubmitted && !editingQuotes[uniqueId]
                                   ? parseFloat(quoted).toFixed(2)
                                   : quotedPrices[uniqueId] || ""
                               }
-                              onChange={(e) =>
-                                handlePriceChange(e.target.value, detail.id, supplierId)
-                              }
+                              onChange={(e) => handlePriceChange(e.target.value, detail.id, supplierId)}
                               className={`w-full border rounded-md px-4 py-2 text-sm shadow-sm ${
-                                alreadySubmitted
+                                alreadySubmitted && !editingQuotes[uniqueId]
                                   ? "bg-gray-100 border-gray-300 text-gray-500"
                                   : "border-gray-300 focus:ring-2 focus:ring-indigo-500"
                               }`}
                             />
-                            {alreadySubmitted && (
+
+                            {alreadySubmitted && !editingQuotes[uniqueId] && (
                               <span className="absolute top-1/2 right-3 -translate-y-1/2 text-xs font-medium text-green-600">
                                 Already submitted
                               </span>
                             )}
+
                           </div>
-                          <div className="md:col-span-3">
+                          <div className="md:col-span-3 flex gap-2">
                             {alreadySubmitted && !editingQuotes[uniqueId] ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setEditingQuotes((prev) => ({ ...prev, [uniqueId]: true }))
-                              }
-                              className="w-14 flex justify-center items-center gap-2 py-2 px-4 font-medium text-sm rounded-md bg-yellow-500 hover:bg-yellow-600 text-white"
-                            >
-                              <PencilSquareIcon className="w-4 h-4" />
-                            </button>
-                          ) : (
-                            <button
-                              type="submit"
-                              disabled={isSubmitting}
-                              className={`w-14 flex justify-center items-center gap-2 py-2 px-4 font-medium text-sm rounded-md ${
-                                isSubmitting
-                                  ? "bg-gray-400 cursor-wait"
-                                  : "bg-green-600 hover:bg-green-700 text-white"
-                              }`}
-                            >
-                              {alreadySubmitted ? (
+                              <>
+                                {/* EDIT BUTTON */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingQuotes((prev) => ({ ...prev, [uniqueId]: true }));
+                                    setQuotedPrices((prev) => ({ ...prev, [uniqueId]: quoted })); // preload current value
+                                  }}
+                                  className="w-14 flex justify-center items-center gap-2 py-2 px-4 font-medium text-sm rounded-md bg-yellow-500 hover:bg-yellow-600 text-white"
+                                >
+                                  <PencilSquareIcon className="w-4 h-4" />
+                                </button>
+
+                                {/* DELETE BUTTON */}
+                                <button
+                                  type="button"
+                                  disabled={isSubmitting}
+                                  onClick={() => {
+                                    showDialog({
+                                      title: "Confirm Delete",
+                                      message: "Are you sure you want to delete this quoted price?",
+                                      type: "confirm",
+                                      onConfirm: () => handleDeleteQuote(detail.id, supplierId, uniqueId),
+                                    });
+                                  }}
+                                  className="w-14 flex justify-center items-center gap-2 py-2 px-4 font-medium text-sm rounded-md bg-red-600 hover:bg-red-700 text-white"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            ) : alreadySubmitted ? (
+                              // SAVE BUTTON (edit mode)
+                              <button
+                                type="button"
+                                disabled={isSubmitting}
+                                onClick={() => {
+                                  const latestValue = quotedPrices[uniqueId] ?? "";
+                                  handleSubmit(detail.id, supplierId, latestValue, uniqueId);
+                                }}
+                                className={`w-14 flex justify-center items-center gap-2 py-2 px-4 font-medium text-sm rounded-md ${
+                                  isSubmitting
+                                    ? "bg-gray-400 cursor-wait"
+                                    : "bg-green-600 hover:bg-green-700 text-white"
+                                }`}
+                              >
                                 <Save className="w-4 h-4" />
-                              ) : (
+                              </button>
+                            ) : (
+                              // FIRST SUBMIT BUTTON
+                              <button
+                                type="submit"
+                                disabled={isSubmitting}
+                                className={`w-14 flex justify-center items-center gap-2 py-2 px-4 font-medium text-sm rounded-md ${
+                                  isSubmitting
+                                    ? "bg-gray-400 cursor-wait"
+                                    : "bg-green-600 hover:bg-green-700 text-white"
+                                }`}
+                              >
                                 <CheckCircle2 className="w-4 h-4" />
-                              )}
-                            </button>
-                          )}
+                              </button>
+                            )}
                           </div>
+
+
 
 
                         </form>
@@ -619,6 +728,11 @@ const filteredSuppliers = supplierList
                         <td className="py-3 px-4">{supplier.tin_num}</td>
                         <td className="py-3 px-4 space-x-2">
                           <button
+                            disabled={rfq_details.some(
+                              (q) =>
+                                q.pr_details_id === selectedItemId &&
+                                q.supplier_id === supplier.id
+                            )}
                             onClick={() => {
                               const priceValue =
                                 selectedItemId === null
@@ -626,8 +740,8 @@ const filteredSuppliers = supplierList
                                   : estimatedPrice[selectedItemId] || "";
                               const finalBid =
                                 priceValue.toString().trim() ||
-                                (pr.details?.find((d) => d.id === selectedItemId)
-                                  ?.unit_price || "");
+                                (pr.details?.find((d) => d.id === selectedItemId)?.unit_price ||
+                                  "");
 
                               addSelection(selectedItemId, supplier.id, finalBid);
                               setEstimatedPrice((prev) => ({
@@ -645,19 +759,25 @@ const filteredSuppliers = supplierList
                               setSelectedSupplierId(String(supplier.id));
                               setShowModal(false);
                             }}
-                            className="text-sm bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1 rounded-lg shadow"
+                            className="text-sm bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1 rounded-lg shadow disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             Select
                           </button>
 
-                          <button
-                            onClick={() => {
-                              const updatedSelectedSuppliers = {
-                                ...selectedSuppliersByItem,
-                              };
-                              const updatedPrices = { ...estimatedPrice };
+                        <button
+                          onClick={() => {
+                            const updatedSelectedSuppliers = { ...selectedSuppliersByItem };
+                            const updatedPrices = { ...estimatedPrice };
+                            const skipped = [];
 
-                              pr.details.forEach((detail) => {
+                            pr.details.forEach((detail) => {
+                              const alreadyQuoted = rfq_details.some(
+                                (q) => q.pr_details_id === detail.id && q.supplier_id === supplier.id
+                              );
+
+                              if (alreadyQuoted) {
+                                skipped.push(detail.item_description || `Item #${detail.id}`);
+                              } else {
                                 const price = detail.unit_price || "";
                                 updatedPrices[detail.id] = price;
 
@@ -665,24 +785,26 @@ const filteredSuppliers = supplierList
 
                                 const current = updatedSelectedSuppliers[detail.id] || [];
                                 if (!current.includes(supplier.id)) {
-                                  updatedSelectedSuppliers[detail.id] = [
-                                    ...current,
-                                    supplier.id,
-                                  ];
+                                  updatedSelectedSuppliers[detail.id] = [...current, supplier.id];
                                 }
-                              });
+                              }
+                            });
 
-                              setEstimatedPrice(updatedPrices);
-                              setSelectedSuppliersByItem(updatedSelectedSuppliers);
-                              setSelectedSupplierId(String(supplier.id));
-                              setEntirePRSupplier(supplier.id); // store supplier globally
-                              setShowModal(false);
+                            setEstimatedPrice(updatedPrices);
+                            setSelectedSuppliersByItem(updatedSelectedSuppliers);
+                            setSelectedSupplierId(String(supplier.id));
+                            setEntirePRSupplier(supplier.id); 
+                            setShowModal(false);
 
-                            }}
-                            className="text-sm bg-green-600 text-white hover:bg-green-700 px-3 py-1 rounded-lg shadow"
-                          >
-                            Apply to Entire PR
-                          </button>
+                            if (skipped.length > 0) {
+                              setSkippedItems(skipped);
+                              setWarningDialogOpen(true);
+                            }
+                          }}
+                          className="text-sm bg-green-600 text-white hover:bg-green-700 px-3 py-1 rounded-lg shadow"
+                        >
+                          Apply to Entire PR
+                        </button>
                         </td>
                       </tr>
                     ))
@@ -888,6 +1010,20 @@ const filteredSuppliers = supplierList
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Dialog open={warningDialogOpen} onOpenChange={setWarningDialogOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Some Items Skipped</DialogTitle>
+          <DialogDescription>
+            This supplier already quoted for some items, so they were skipped:
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogFooter className="mt-4">
+          <Button onClick={() => setWarningDialogOpen(false)}>OK</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </ApproverLayout>
   );
 }

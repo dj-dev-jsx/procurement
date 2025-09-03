@@ -51,7 +51,9 @@
                         ₱{{ number_format($detail->quoted_price, 2) }}
                     </td>
                     <td>
-                        {{ $detail->is_winner ? "Lowest Calculated Bid" : "" }}
+                        <td>
+                            {{ $detail['is_winner'] ? ($detail['remarks'] ?? 'Winner') : '' }}
+                        </td>
                     </td>
                 </tr>
             @endforeach
@@ -68,13 +70,21 @@
         </tbody>
     </table>
 
-    <p style="font-size:12px; margin-top:10px;">
-        Awarded to: 
+    @php
+        $awarded = collect($top3)->firstWhere('is_winner', 1);
+    @endphp
+
+    <p>
+        Awarded to:
         <span style="text-decoration:underline; font-weight:bold;">
-            {{ optional($top3->firstWhere('is_winner', true))->supplier->company_name ?? '__________' }}
+            {{ $awarded['supplier']['company_name'] ?? '__________' }}
         </span>
-        offering the <em>Lowest Calculated Bid</em>.
+        @if(!empty($awarded['remarks']))
+            offering the <em>{{ $awarded['remarks'] }}</em>.
+        @endif
     </p>
+
+
 
     <div style="margin-top:40px; font-size:12px;">
         <p><strong>Prepared by:</strong></p>

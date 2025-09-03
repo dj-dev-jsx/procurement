@@ -93,6 +93,8 @@ Route::middleware(['auth', 'role:bac_approver'])->prefix('bac_approver')->group(
     Route::get('/approver/print_aoq/{id}/{pr_detail_id?}', [ApproverController::class, 'printAOQ'])->name('bac_approver.print_aoq');
     Route::post('/store_supplier', [ApproverController::class, 'store_supplier'])->name('bac_approver.store_supplier');
     Route::post('/requests/{id}/send_back', [ApproverController::class, 'send_back'])->name('requester.send_back');
+    Route::delete('/delete_quoted', [ApproverController::class, 'delete_quoted'])->name('bac_approver.delete_quoted');
+
 });
 
 // Supply Routes

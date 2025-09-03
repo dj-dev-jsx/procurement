@@ -50,9 +50,10 @@
                     <td>
                         ₱{{ number_format($detail['total_amount'], 2) }}
                     </td>
-                    <td>
-                        {{ $loop->first ? "Lowest Calculated Bid" : "" }}
-                    </td>
+                    <td>{{ !empty($detail['is_winner']) ? "Winner" : "" }}</td>
+
+
+
                 </tr>
             @endforeach
             {{-- filler rows --}}
@@ -70,10 +71,14 @@
     <p style="font-size:12px; margin-top:10px;">
         Awarded to: 
         <span style="text-decoration:underline; font-weight:bold;">
-            {{ optional($top3->firstWhere('is_winner', true))->supplier->company_name ?? '__________' }}
+            {{ is_array($top3[0]) 
+                ? $top3[0]['supplier']->company_name 
+                : $top3[0]->supplier->company_name }}
         </span>
-        offering the <em>Lowest Calculated Bid</em>.
+        offering the <em>Approved Bid</em>.
     </p>
+
+
 
     <div style="margin-top:40px; font-size:12px;">
         <p><strong>Prepared by:</strong></p>

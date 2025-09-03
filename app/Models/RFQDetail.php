@@ -27,6 +27,10 @@ class RFQDetail extends Model
     {
         return $this->belongsTo(PurchaseRequestDetail::class, 'pr_details_id');
     }
+    public function rfq()
+    {
+        return $this->belongsTo(Rfq::class, 'rfq_id');
+    }
 
 
 
