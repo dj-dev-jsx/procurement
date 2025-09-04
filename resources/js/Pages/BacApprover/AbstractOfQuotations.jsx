@@ -11,6 +11,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+
+
 
 export default function AbstractOfQuotations({ rfq, groupedDetails = {}, committee }) {
   const pr = rfq.purchase_request;
@@ -18,11 +21,15 @@ export default function AbstractOfQuotations({ rfq, groupedDetails = {}, committ
   const [winnerDialogOpen, setWinnerDialogOpen] = useState(false);
   const [remarks, setRemarks] = useState("");
   const [selectedWinner, setSelectedWinner] = useState({ rfqId: null, supplierId: null });
+  const [committeeDialogOpen, setCommitteeDialogOpen] = useState(false);
+  const { toast } = useToast();
+
 
   // Initialize committee state from props
   const [committeeState, setCommitteeState] = useState(() => {
     const members = {};
     const positions = ["secretariat", "member1", "member2", "member3", "vice_chair", "chair"];
+    
 
     positions.forEach((pos) => {
       const member = committee?.members?.find((m) => m.position === pos);
@@ -39,21 +46,35 @@ export default function AbstractOfQuotations({ rfq, groupedDetails = {}, committ
     }));
   };
 
-  const handleSaveCommittee = () => {
-    const payload = {
-      status: committeeState.status,
-      members: Object.entries(committeeState.members).map(([position, info]) => ({
-        position,
-        name: info.name,
-        status: info.status,
-      })),
-    };
+const handleSaveCommittee = () => {
+  setCommitteeDialogOpen(true); // just opens the dialog
+};
 
-    router.post("/bac-committee/save", payload, {
-      preserveScroll: true,
-      onSuccess: () => alert("BAC Committee saved successfully."),
-    });
+const handleConfirmSaveCommittee = () => {
+  const payload = {
+    id: committee?.id ?? null,
+    status: committeeState.status,
+    members: Object.entries(committeeState.members).map(([position, info]) => ({
+      position,
+      name: info.name,
+      status: info.status,
+    })),
   };
+
+  router.post(route("bac.committee.save"), payload, {
+    preserveScroll: true,
+    onSuccess: () => {
+      setCommitteeDialogOpen(false);
+      toast({
+        title: "Committee Saved",
+        description: "BAC Committee has been updated successfully.",
+        duration: 3000,
+      });
+    },
+  });
+};
+
+
 
   const handlePrintAOQ = (rfqId) => window.open(route("bac_approver.print_aoq", { id: rfqId }), "_blank");
 
@@ -101,6 +122,7 @@ export default function AbstractOfQuotations({ rfq, groupedDetails = {}, committ
     ...s,
     isWinner: s.supplier.id == fullPrWinnerSupplierId,
   }));
+
 
   return (
     <ApproverLayout>
@@ -198,6 +220,7 @@ export default function AbstractOfQuotations({ rfq, groupedDetails = {}, committ
           </div>
           <div className="mt-4">
             <Button onClick={handleSaveCommittee}>Save BAC Committee</Button>
+
           </div>
         </div>
       </div>
@@ -227,6 +250,28 @@ export default function AbstractOfQuotations({ rfq, groupedDetails = {}, committ
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={committeeDialogOpen} onOpenChange={setCommitteeDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Save</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to save the changes to the BAC Committee?
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="mt-4">
+            <Button variant="secondary" onClick={() => setCommitteeDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmSaveCommittee}>
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
     </ApproverLayout>
   );
 }

@@ -13,6 +13,7 @@ import Dropdown from '@/Components/Dropdown';
 import logo from '../src/deped1.png';
 import { Inertia } from '@inertiajs/inertia';
 import { CheckCircleIcon, ClipboardCheckIcon, FileTextIcon } from 'lucide-react';
+import { Toaster } from "@/components/ui/toaster";
 
 export default function ApproverLayout({ header, children }) {
   const { user } = usePage().props.auth;
@@ -89,17 +90,24 @@ useEffect(() => {
     hour12: true,
   });
 
-  const markAsRead = async (id) => {
-    try {
-      await axios.post(`/notifications/${id}/read`);
-      setNotifications((prevNotifications) =>
-        prevNotifications.map((n) => n.id === id ? { ...n, read: true } : n)
-      );
-      Inertia.visit(route('bac_approver.for_review'));
-    } catch (error) {
-      console.error('Failed to mark notification as read:', error);
+const markAsRead = async (notification) => {
+  try {
+    await axios.post(`/notifications/${notification.id}/read`);
+    setNotifications((prevNotifications) =>
+      prevNotifications.map((n) =>
+        n.id === notification.id ? { ...n, read: true } : n
+      )
+    );
+
+    // if your backend stores purchase request ID in notification.data.pr_id
+    if (notification.data?.pr_id) {
+      Inertia.visit(route("bac_approver.show_details", notification.data.pr_id));
     }
-  };
+  } catch (error) {
+    console.error('Failed to mark notification as read:', error);
+  }
+};
+
 
   return (
     <>
@@ -226,7 +234,7 @@ useEffect(() => {
                       .map((n) => (
                         <li
                           key={n.id}
-                          onClick={() => markAsRead(n.id)}
+                          onClick={() => markAsRead(n)} // ✅ pass full object
                           className={`flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition duration-150 ${
                             n.read ? 'bg-white text-gray-500' : 'bg-gray-50 text-gray-900 font-semibold'
                           }`}
@@ -319,6 +327,7 @@ useEffect(() => {
         </header>
 
         <main className="p-6 flex-1 overflow-y-auto bg-gray-300">{children}</main>
+        <Toaster />
       </div>
     </div>
         </>

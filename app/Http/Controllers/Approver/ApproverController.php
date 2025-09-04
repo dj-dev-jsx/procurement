@@ -713,5 +713,60 @@ public function delete_quoted(Request $request)
         }
     }
 
+    public function save_committee(Request $request)
+    {
+        $data = $request->validate([
+            'status' => 'required|string',
+            'members' => 'required|array',
+            'members.*.position' => 'required|string',
+            'members.*.name' => 'nullable|string',
+            'members.*.status' => 'required|string',
+        ]);
+
+        // Find or create committee
+        $committee = BACCommittee::firstOrCreate([], [
+            'committee_status' => $data['status'],
+        ]);
+
+        $committee->update(['committee_status' => $data['status']]);
+
+        foreach ($data['members'] as $memberData) {
+            // Find current active member for this position
+            $existing = $committee->members()
+                ->where('position', $memberData['position'])
+                ->where('status', 'active')
+                ->first();
+
+            if ($existing) {
+                if ($existing->name !== $memberData['name']) {
+                    // Deactivate the old one
+                    $existing->update(['status' => 'inactive']);
+
+                    // Insert the new one
+                    if (!empty($memberData['name'])) {
+                        $committee->members()->create([
+                            'position' => $memberData['position'],
+                            'name'     => $memberData['name'],
+                            'status'   => 'active',
+                        ]);
+                    }
+                }
+                // else do nothing (no change)
+            } else {
+                // No active member yet, create new
+                if (!empty($memberData['name'])) {
+                    $committee->members()->create([
+                        'position' => $memberData['position'],
+                        'name'     => $memberData['name'],
+                        'status'   => 'active',
+                    ]);
+                }
+            }
+        }
+
+        return back()->with('success', 'BAC Committee updated successfully!');
+    }
+
+
 
 }

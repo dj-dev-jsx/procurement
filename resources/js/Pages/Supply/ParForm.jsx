@@ -2,7 +2,6 @@ import SupplyOfficerLayout from "@/Layouts/SupplyOfficerLayout";
 import { Head } from "@inertiajs/react";
 
 export default function ParForm(){
-    console.log("running");
     return(
         <SupplyOfficerLayout header={"Schools Divisions Office - Ilagan | Property Acknowledgement Receipt"}>
             <Head title="PAR Form"/>

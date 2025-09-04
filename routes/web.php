@@ -94,6 +94,7 @@ Route::middleware(['auth', 'role:bac_approver'])->prefix('bac_approver')->group(
     Route::post('/store_supplier', [ApproverController::class, 'store_supplier'])->name('bac_approver.store_supplier');
     Route::post('/requests/{id}/send_back', [ApproverController::class, 'send_back'])->name('requester.send_back');
     Route::delete('/delete_quoted', [ApproverController::class, 'delete_quoted'])->name('bac_approver.delete_quoted');
+    Route::post('/bac-committee/save', [ApproverController::class, 'save_committee'])->name('bac.committee.save');
 
 });
 
