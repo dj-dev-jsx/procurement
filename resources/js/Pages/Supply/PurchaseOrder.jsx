@@ -171,11 +171,17 @@ export default function PurchaseOrder({ purchaseRequests, filters }) {
                     <td className="px-6 py-4 align-middle">
                       <a
                         href={route("supply_officer.create_po", pr.id)}
-                        className="inline-block px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition"
+                        className={`inline-block px-4 py-2 text-sm font-medium rounded-md transition ${
+                          pr.has_po
+                            ? "bg-gray-400 cursor-not-allowed"
+                            : "bg-blue-600 text-white hover:bg-blue-700"
+                        }`}
+                        onClick={(e) => pr.has_po && e.preventDefault()}
                       >
-                        Purchase Order
+                        {pr.has_po ? "PO Generated" : "Purchase Order"}
                       </a>
                     </td>
+
                   </tr>
                 );
               })

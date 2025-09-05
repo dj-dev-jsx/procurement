@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Supply;
 use App\Exports\RISExport;
 use App\Exports\RISExportMonthly;
 use App\Http\Controllers\Controller;
+use App\Models\AuditLogs;
 use App\Models\Division;
 use App\Models\IAR;
 use App\Models\ICS;
@@ -163,38 +164,52 @@ class SupplyController extends Controller
     ]);
 }
 
-    public function purchase_orders(Request $request){
-        $search = $request->input('search');
-        $division = $request->input('division');
+public function purchase_orders(Request $request){
+    $search = $request->input('search');
+    $division = $request->input('division');
 
-        $purchaseRequests = PurchaseRequest::with([
-            'division',
-            'focal_person',
-            'details.product.unit',
-            'rfqs.details.supplier'
-        ])
-        ->whereHas('rfqs.details', fn ($q) => $q->where('is_winner', true))
-        ->when($search, function ($query, $search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('pr_number', 'like', "%$search%")
-                ->orWhereHas('focal_person', fn ($q2) => $q2->where('firstname', 'like', "%$search%")->orWhere('lastname', 'like', "%$search%"));
-            });
-        })
-        ->when($division, fn ($q) => $q->where('division_id', $division))
-        ->paginate(10)
-        ->withQueryString();
+    $purchaseRequests = PurchaseRequest::with([
+        'division',
+        'focal_person',
+        'details.product.unit',
+        'rfqs.details.supplier'
+    ])
+    ->whereHas('rfqs.details', fn ($q) => $q->where('is_winner', true))
+    ->when($search, function ($query, $search) {
+        $query->where(function ($q) use ($search) {
+            $q->where('pr_number', 'like', "%$search%")
+              ->orWhereHas('focal_person', fn ($q2) =>
+                  $q2->where('firstname', 'like', "%$search%")
+                     ->orWhere('lastname', 'like', "%$search%")
+              );
+        });
+    })
+    ->when($division, fn ($q) => $q->where('division_id', $division))
+    ->paginate(10)
+    ->withQueryString();
 
-        $divisions = Division::select('id', 'division')->get();
+    // Get all RFQ IDs that already have POs
+    $poRfqs = PurchaseOrder::pluck('rfq_id')->toArray();
 
-        return Inertia::render('Supply/PurchaseOrder', [
-            'purchaseRequests' => $purchaseRequests,
-            'filters' => [
-                'search' => $search,
-                'division' => $division,
-                'divisions' => $divisions,
-            ],
-        ]);
-    }
+    // Add a `has_po` property for each PR
+    $purchaseRequests->getCollection()->transform(function ($pr) use ($poRfqs) {
+        $rfqIds = $pr->rfqs->pluck('id')->toArray();
+        $pr->has_po = count(array_intersect($rfqIds, $poRfqs)) > 0;
+        return $pr;
+    });
+
+    $divisions = Division::select('id', 'division')->get();
+
+    return Inertia::render('Supply/PurchaseOrder', [
+        'purchaseRequests' => $purchaseRequests,
+        'filters' => [
+            'search' => $search,
+            'division' => $division,
+            'divisions' => $divisions,
+        ],
+    ]);
+}
+
 
 
     public function create_po($prId){
@@ -236,7 +251,9 @@ class SupplyController extends Controller
         ]);
     }
 
-    public function store_po(Request $request){
+    public function store_po(Request $request)
+    {
+        
         $request->validate([
             'rfq_id' => 'required|exists:tbl_rfqs,id',
             'supplier_id' => 'required|exists:tbl_suppliers,id',
@@ -245,13 +262,15 @@ class SupplyController extends Controller
             'items.*.quantity' => 'required|numeric|min:0',
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.total_price' => 'required|numeric|min:0',
+            'reason' => 'nullable|string|max:500', // add reason field
         ]);
 
         DB::transaction(function () use ($request) {
             $firstPrDetailId = $request->items[0]['pr_detail_id'];
-            $purchaseRequest = PurchaseRequest::with('focal_person')->whereHas('details', function ($q) use ($firstPrDetailId) {
-                $q->where('id', $firstPrDetailId);
-            })->firstOrFail();
+            $purchaseRequest = PurchaseRequest::with(['focal_person', 'details'])
+                ->whereHas('details', function ($q) use ($firstPrDetailId) {
+                    $q->where('id', $firstPrDetailId);
+                })->firstOrFail();
 
             $userId = is_object($purchaseRequest->focal_person)
                 ? $purchaseRequest->focal_person->id
@@ -261,7 +280,6 @@ class SupplyController extends Controller
                 throw new \Exception("Focal person not assigned to this Purchase Request.");
             }
 
-
             // Generate PO number
             $poNumber = $purchaseRequest->pr_number;
 
@@ -269,11 +287,29 @@ class SupplyController extends Controller
                 'po_number' => $poNumber,
                 'rfq_id' => $request->rfq_id,
                 'supplier_id' => $request->supplier_id,
-                'user_id' => $userId, 
+                'user_id' => $userId,
                 'status' => 'Not yet Delivered',
             ]);
 
             foreach ($request->items as $item) {
+                $prDetail = $purchaseRequest->details->firstWhere('id', $item['pr_detail_id']);
+                $user = Auth::user();
+                // Audit log if qty differs
+                if ($prDetail && $prDetail->quantity != $item['quantity']) {
+                    AuditLogs::create([
+                        'action' => 'quantity_changed',
+                        'entity_type' => 'PurchaseOrder',
+                        'entity_id' => $po->id,
+                        'changes' => json_encode([
+                            'pr_detail_id' => $prDetail->id,
+                            'pr_qty' => $prDetail->quantity,
+                            'po_qty' => $item['quantity'],
+                        ]),
+                        'reason' => $item['change_reason'] ?? null,
+                        'user_id' => $user->id,
+                    ]);
+                }
+
                 PurchaseOrderDetail::create([
                     'po_id' => $po->id,
                     'pr_detail_id' => $item['pr_detail_id'],
@@ -286,8 +322,9 @@ class SupplyController extends Controller
 
         return redirect()
             ->route('supply_officer.purchase_orders_table')
-            ->with('success', 'Purchase Order successfully created.');
+            ->with('success', 'Purchase Order successfully created with auditing.');
     }
+
 
     public function purchase_orders_table(Request $request){
         $search = $request->input('search');
@@ -387,7 +424,7 @@ public function store_iar(Request $request)
         'items.*.quantity_received'  => 'required|numeric|min:0',
         'items.*.unit_price'         => 'required|numeric|min:0',
         'items.*.total_price'        => 'required|numeric|min:0',
-        'items.*.remarks'            => 'nullable|string',
+        'items.*.remarks'            => 'required|string|max:255',
     ]);
 
     $userId = Auth::id();
@@ -414,7 +451,7 @@ public function store_iar(Request $request)
             'unit'                   => $unitId,
             'unit_price'             => $item['unit_price'],
             'total_price'            => $item['total_price'],
-            'remarks'                => $item['remarks'] ?? null,
+            'remarks'                => $item['remarks'] ?? "",
             'inspection_committee_id'=> $validated['inspection_committee_id'], // ✅ fixed
             'date_received'          => $validated['date_received'],
         ]);

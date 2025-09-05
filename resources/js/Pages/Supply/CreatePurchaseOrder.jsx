@@ -20,6 +20,9 @@ export default function CreatePurchaseOrder({ pr, rfq, suppliers, winners, suppl
   const winningSuppliers = useMemo(() => suppliers.filter(s => winningSupplierIds.includes(s.id)), [suppliers, winningSupplierIds]);
   const otherSuppliers = useMemo(() => suppliers.filter(s => !winningSupplierIds.includes(s.id)), [suppliers, winningSupplierIds]);
   const initialSupplierId = winningSuppliers.length > 0 ? winningSuppliers[0].id : "";
+  const [isReasonDialogOpen, setIsReasonDialogOpen] = useState(false);
+  const [pendingChange, setPendingChange] = useState(null); // store item index + new value
+  const [reason, setReason] = useState("");
 
   const getItemsForSupplier = (supplierId) => {
     if (!supplierId) return [];
@@ -64,12 +67,43 @@ export default function CreatePurchaseOrder({ pr, rfq, suppliers, winners, suppl
   }, [selectedSupplierId]);
 
   const handleChange = (index, field, value) => {
+    if (field === "quantity") {
+      const numericValue = Number(value) >= 0 ? Number(value) : 0;
+
+      // If changed from original PR quantity, ask for reason
+      const originalQty = pr.details.find((d) => d.id === data.items[index].pr_detail_id)?.quantity;
+      if (numericValue !== originalQty) {
+        setPendingChange({ index, field, value: numericValue });
+        setIsReasonDialogOpen(true);
+        return; // don’t update yet until reason is given
+      }
+    }
+
+    // Normal update for other fields
     const updatedItems = [...data.items];
     const numericValue = Number(value) >= 0 ? Number(value) : 0;
     updatedItems[index][field] = numericValue;
-    updatedItems[index].total_price = Number(updatedItems[index].quantity) * Number(updatedItems[index].unit_price);
+    updatedItems[index].total_price =
+      Number(updatedItems[index].quantity) * Number(updatedItems[index].unit_price);
     setData("items", updatedItems);
   };
+  const handleConfirmReason = () => {
+  if (!pendingChange) return;
+
+  const { index, field, value } = pendingChange;
+  const updatedItems = [...data.items];
+  updatedItems[index][field] = value;
+  updatedItems[index].total_price =
+    Number(updatedItems[index].quantity) * Number(updatedItems[index].unit_price);
+
+  // Store reason for auditing
+  updatedItems[index].change_reason = reason;
+
+  setData("items", updatedItems);
+  setPendingChange(null);
+  setReason("");
+  setIsReasonDialogOpen(false);
+};
 
   // 3. This function now opens the dialog instead of submitting directly
   const handleSubmit = (e) => {
@@ -203,6 +237,43 @@ export default function CreatePurchaseOrder({ pr, rfq, suppliers, winners, suppl
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Dialog open={isReasonDialogOpen} onOpenChange={setIsReasonDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reason for Change</DialogTitle>
+            <DialogDescription className="pt-2">
+              You changed the quantity from the original PR. Please provide a reason for this adjustment.
+            </DialogDescription>
+          </DialogHeader>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className="w-full border rounded px-3 py-2 mt-3"
+            rows="3"
+            placeholder="Enter reason..."
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsReasonDialogOpen(false);
+                setPendingChange(null);
+                setReason("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmReason}
+              disabled={!reason.trim()}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Save Change
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </SupplyOfficerLayout>
   );
 }

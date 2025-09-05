@@ -6,7 +6,7 @@ import Swal from "sweetalert2";
 
 
 export default function ManageRequests({ purchaseRequests, search: initialSearch, month: initialMonth }) {
-const { flash } = usePage().props;
+const { flash, auth } = usePage().props; // ✅ assume you pass `auth.user` from backend
 
   const [search, setSearch] = useState(initialSearch || "");
   const [month, setMonth] = useState(initialMonth || "");
@@ -67,6 +67,7 @@ const { flash } = usePage().props;
     window.open(route("requester.print", id), "_blank");
   };
 
+  // ✅ Handle flash messages
   useEffect(() => {
     if (flash?.success) {
       Swal.fire({
@@ -86,6 +87,7 @@ const { flash } = usePage().props;
     }
   }, [flash]);
 
+  // ✅ Debounced search + month filter
   useEffect(() => {
     const delay = setTimeout(() => {
       router.get(route("requester.manage_requests"), { search, month }, {
@@ -94,11 +96,17 @@ const { flash } = usePage().props;
         replace: true,
       });
     }, 300);
-
     return () => clearTimeout(delay);
   }, [search, month]);
 
+  // ✅ Secure Polling (refresh PR list every 10s)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      router.reload({ only: ["purchaseRequests"], preserveScroll: true });
+    }, 10000); // 10s
 
+    return () => clearInterval(interval);
+  }, []);
   return (
     <RequesterLayout header="Schools Division Office - Ilagan | Manage Requests">
       <Head title="Manage Requests" />
