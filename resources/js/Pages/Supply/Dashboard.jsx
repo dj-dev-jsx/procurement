@@ -26,7 +26,8 @@ import {
     LabelList,
 } from "recharts";
 
-export default function Dashboard({stats, documents, stockData, recentActivity}) {
+export default function Dashboard({stats, documents, stockData, recentActivity, user}) {
+    
     const stockDataArray = Object.values(stockData);
     const iconMap = {
         Boxes: Boxes,
@@ -42,9 +43,9 @@ export default function Dashboard({stats, documents, stockData, recentActivity})
 
     // Pie chart: Requests Status handled by Supply Officer
     const requestStatusData = [
-        { name: "Processed", value: 60, color: "#16a34a" },
-        { name: "Pending", value: 10, color: "#eab308" },
-        { name: "On-Hold", value: 5, color: "#dc2626" },
+        { name: "Processed", value: 5, color: "#16a34a" },
+        { name: "Pending", value: 0, color: "#eab308" },
+        { name: "On-Hold", value: 2, color: "#dc2626" },
     ];
 
 
@@ -53,7 +54,7 @@ export default function Dashboard({stats, documents, stockData, recentActivity})
             <Head title="Dashboard" />
 
             <div className="bg-white rounded-2xl shadow p-6 mb-6">
-                <h1 className="text-2xl font-semibold text-gray-800">Welcome Supply Officer!</h1>
+                <h1 className="text-2xl font-semibold text-gray-800">Welcome, {user.firstname}</h1>
                 <p className="text-gray-600">
                     Manage inventory, RIS, ICS, PAR, PO, and Issuance efficiently from your dashboard.
                 </p>
@@ -166,7 +167,7 @@ export default function Dashboard({stats, documents, stockData, recentActivity})
                 <table className="w-full text-sm text-left text-gray-600">
                     <thead>
                         <tr className="border-b">
-                            <th className="px-4 py-2">Request ID</th>
+                            <th className="px-4 py-2">PR Number</th>
                             <th className="px-4 py-2">Action</th>
                             <th className="px-4 py-2">Status</th>
                             <th className="px-4 py-2">Date</th>

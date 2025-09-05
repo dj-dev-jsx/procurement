@@ -42,6 +42,8 @@ class SupplyController extends Controller
     $totalPo = PurchaseOrder::count();
     $categories = SupplierCategory::all();
 
+    $user = Auth::user();
+
     $risActivity = RIS::with(['issuedTo', 'issuedBy', 'inventoryItem'])
         ->latest('created_at')
         ->take(5)
@@ -156,7 +158,8 @@ class SupplyController extends Controller
             ],
         ],
         'stockData' => $totalStockPerCategory,
-        'recentActivity' => $recentActivity
+        'recentActivity' => $recentActivity,
+        'user' => $user
     ]);
 }
 
