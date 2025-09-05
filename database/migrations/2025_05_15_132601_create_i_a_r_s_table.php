@@ -22,7 +22,9 @@ return new class extends Migration
             $table->decimal('unit_price', 10, 2);
             $table->decimal('total_price', 10, 2);
             $table->text('remarks');
-            $table->string('inspected_by', 100)->nullable();
+            $table->foreignId('inspection_committee_id')
+                ->constrained('tbl_inspection_committees')
+                ->onDelete('restrict');
             $table->date('date_received');
             $table->timestamps();
         });

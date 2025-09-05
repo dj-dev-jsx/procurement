@@ -8,6 +8,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Division;
 use App\Models\IAR;
 use App\Models\ICS;
+use App\Models\InspectionCommittee;
+use App\Models\InspectionCommitteeMember;
 use App\Models\Inventory;
 use App\Models\PAR;
 use App\Models\PurchaseOrder;
@@ -338,6 +340,9 @@ class SupplyController extends Controller
     }
 
     public function record_iar($id){
+        $committee = InspectionCommittee::with('members')
+        ->where('inspection_committee_status', 'active')
+        ->first();
         $po = PurchaseOrder::with([
             'rfq.purchaseRequest.focal_person',
             'rfq.purchaseRequest.details.product.unit',
@@ -345,7 +350,8 @@ class SupplyController extends Controller
             'details' 
         ])->findOrFail($id);
         return Inertia::render('Supply/RecordIar', [
-            'po' => $po
+            'po' => $po,
+            'inspectionCommittee' => $committee
         ]);
     }
 public function store_iar(Request $request)
@@ -365,27 +371,26 @@ public function store_iar(Request $request)
         dd($e->getMessage());
     }
 
-    // ✅ Validate using array of items
+    // ✅ Validate using correct inspection_committee_id
     $validated = $request->validate([
         'po_id'                      => 'required|exists:tbl_purchase_orders,id',
         'iar_number'                 => 'required|string|max:20',
         'date_received'              => 'required|date',
-        'items'                       => 'required|array|min:1',
-        'items.*.pr_details_id'       => 'required|exists:tbl_pr_details,id',
-        'items.*.specs'               => 'required|string|max:255',
-        'items.*.quantity_ordered'    => 'required|numeric|min:0',
-        'items.*.quantity_received'   => 'required|numeric|min:0',
-        'items.*.unit_price'          => 'required|numeric|min:0',
-        'items.*.total_price'         => 'required|numeric|min:0',
-        'items.*.remarks'             => 'nullable|string',
-        'items.*.inspected_by'        => 'nullable|string|max:100',
+        'inspection_committee_id'    => 'required|exists:tbl_inspection_committees,id', // ✅ fixed
+        'items'                      => 'required|array|min:1',
+        'items.*.pr_details_id'      => 'required|exists:tbl_pr_details,id',
+        'items.*.specs'              => 'required|string|max:255',
+        'items.*.quantity_ordered'   => 'required|numeric|min:0',
+        'items.*.quantity_received'  => 'required|numeric|min:0',
+        'items.*.unit_price'         => 'required|numeric|min:0',
+        'items.*.total_price'        => 'required|numeric|min:0',
+        'items.*.remarks'            => 'nullable|string',
     ]);
 
     $userId = Auth::id();
     $focalPersonId = optional($po->rfq->purchaseRequest->focal_person)->id ?? $userId;
 
     foreach ($validated['items'] as $item) {
-        // ✅ Find unit based on pr_details_id
         $unitId = $po->details
             ->firstWhere('pr_detail_id', $item['pr_details_id'])
             ?->prDetail?->product?->unit?->id;
@@ -398,17 +403,17 @@ public function store_iar(Request $request)
 
         // ✅ Create IAR record
         IAR::create([
-            'po_id'             => $validated['po_id'],
-            'iar_number'        => $validated['iar_number'],
-            'specs'             => $item['specs'],
-            'quantity_ordered'  => $item['quantity_ordered'],
-            'quantity_received' => $item['quantity_received'],
-            'unit'              => $unitId,
-            'unit_price'        => $item['unit_price'],
-            'total_price'       => $item['total_price'],
-            'remarks'           => $item['remarks'] ?? null,
-            'inspected_by'      => $item['inspected_by'] ?? null,
-            'date_received'     => $validated['date_received'],
+            'po_id'                  => $validated['po_id'],
+            'iar_number'             => $validated['iar_number'],
+            'specs'                  => $item['specs'],
+            'quantity_ordered'       => $item['quantity_ordered'],
+            'quantity_received'      => $item['quantity_received'],
+            'unit'                   => $unitId,
+            'unit_price'             => $item['unit_price'],
+            'total_price'            => $item['total_price'],
+            'remarks'                => $item['remarks'] ?? null,
+            'inspection_committee_id'=> $validated['inspection_committee_id'], // ✅ fixed
+            'date_received'          => $validated['date_received'],
         ]);
 
         // ✅ Save to Inventory
@@ -428,6 +433,35 @@ public function store_iar(Request $request)
     return redirect()->route('supply_officer.purchase_orders_table')
         ->with('success', 'IAR and Inventory successfully recorded.');
 }
+
+public function replaceMember(Request $request, $id)
+{
+    $validated = $request->validate([
+        'member_id' => 'required|exists:tbl_inspection_committee_members,id',
+        'replacementName' => 'required|string|max:255',
+    ]);
+
+    $committee = InspectionCommittee::findOrFail($id);
+
+    $member = InspectionCommitteeMember::where('id', $validated['member_id'])
+        ->where('inspection_committee_id', $committee->id)
+        ->where('status', 'active')
+        ->firstOrFail();
+
+    // deactivate old member
+    $member->update(['status' => 'inactive']);
+
+    // create new member
+    $newMember = InspectionCommitteeMember::create([
+        'inspection_committee_id' => $committee->id,
+        'position' => $member->position,
+        'name' => $validated['replacementName'],
+        'status' => 'active',
+    ]);
+
+    return back()->with('success', 'Inspection Committee updated successfully!');
+}
+
 
 
 
@@ -737,6 +771,73 @@ public function issuance($po_id, $inventory_id) // <-- Accepts both IDs
             return back()->withErrors(['error' => 'Failed to store ICS. ' . $e->getMessage()]);
         }
     }
+    public function store_par(Request $request)
+{
+    $validated = $request->validate([
+        'po_id'             => 'required|integer|exists:tbl_purchase_orders,id',
+        'inventory_item_id' => 'required|integer|exists:tbl_inventory,id',
+        'par_number'        => 'required|string|max:20',
+        'received_by'       => 'required|integer|exists:users,id',
+        'issued_by'         => 'required|integer|exists:users,id',
+        'quantity'          => 'required|numeric|min:0.01',
+        'unit_cost'         => 'required|numeric|min:0.01',
+        'total_cost'        => 'required|numeric|min:0.01',
+        'property_no'       => 'nullable|string|max:50',
+        'remarks'           => 'nullable|string|max:255',
+        'date_acquired'     => 'nullable|date',
+    ]);
+
+    DB::beginTransaction();
+    try {
+        $inventory = Inventory::with('po.details.prDetail.product.category')
+            ->findOrFail($validated['inventory_item_id']);
+
+        if ($inventory->total_stock < $validated['quantity']) {
+            return back()->withErrors(['quantity' => 'Not enough stock available.']);
+        }
+
+        // Determine if PAR type depends on category (optional)
+        $type = null;
+        $categoryName = optional(
+            $inventory->po->details->first()?->prDetail?->product?->category
+        )->name;
+
+        if ($categoryName === 'Property') {
+            $type = 'property';
+        }
+
+        // Create PAR record
+        $par = PAR::create([
+            'po_id'             => $validated['po_id'],
+            'par_number'        => $validated['par_number'],
+            'inventory_item_id' => $validated['inventory_item_id'],
+            'received_by'       => $validated['received_by'],
+            'issued_by'         => $validated['issued_by'],
+            'quantity'          => $validated['quantity'],
+            'unit_cost'         => $validated['unit_cost'],
+            'total_cost'        => $validated['total_cost'],
+            'property_no'       => $validated['property_no'] ?? null,
+            'remarks'           => $validated['remarks'] ?? null,
+            'date_acquired'     => $validated['date_acquired'] ?? null,
+            'type'              => $type,
+        ]);
+
+        // Update stock
+        $inventory->total_stock -= $validated['quantity'];
+        $inventory->status = $inventory->total_stock <= 0 ? 'Issued' : 'Available';
+        $inventory->save();
+
+        DB::commit();
+
+        return redirect()->route('supply_officer.par_issuance')
+            ->with('success', 'PAR successfully recorded.');
+
+    } catch (\Exception $e) {
+        DB::rollback();
+        return back()->withErrors(['error' => 'Failed to store PAR. ' . $e->getMessage()]);
+    }
+}
+
 
     public function ics_issuance_low(Request $request){
         $search = $request->input('search');

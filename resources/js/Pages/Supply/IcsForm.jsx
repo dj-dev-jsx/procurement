@@ -1,35 +1,60 @@
 import SupplyOfficerLayout from "@/Layouts/SupplyOfficerLayout";
 import { Head, useForm } from "@inertiajs/react";
 import { FileText, SendHorizonal } from "lucide-react";
+import { useState } from "react";
+import { useToast } from "@/components/ui/use-toast"; // ✅ import
 
 export default function IcsForm({ purchaseOrder, inventoryItem, user }) {
-  console.log("running");
+  const [showConfirm, setShowConfirm] = useState(false);
+  const { toast } = useToast(); // ✅ useToast hook
+
   const detail = purchaseOrder.details?.[0];
   const pr = detail?.pr_detail?.purchase_request;
   const product = detail?.pr_detail?.product;
+
   const focal = pr
-  ? `${pr.focal_person.firstname} ${pr.focal_person.middlename} ${pr.focal_person.lastname}`
-  : "N/A";
-  const {data, setData, post, processing, errors} = useForm({
-      po_id: detail.po_id,
-      ics_number: purchaseOrder.po_number,
-      inventory_item_id: inventoryItem.id,
-      received_by: pr.focal_person.id,
-      received_from: user.id,
-      quantity: detail?.quantity,
-      unit_cost: detail?.unit_price,
-      total_cost: detail?.total_price,
-      remarks: ''
+    ? `${pr.focal_person.firstname} ${pr.focal_person.middlename} ${pr.focal_person.lastname}`
+    : "N/A";
+
+  const { data, setData, post, processing, errors } = useForm({
+    po_id: detail.po_id,
+    ics_number: purchaseOrder.po_number,
+    inventory_item_id: inventoryItem.id,
+    received_by: pr.focal_person.id,
+    received_from: user.id,
+    quantity: detail?.quantity,
+    unit_cost: detail?.unit_price,
+    total_cost: detail?.total_price,
+    remarks: ""
   });
 
-  const item = product
-  ? `${product.name} (${product.specs})`
-  : "N/A";
+  const item = product ? `${product.name} (${product.specs})` : "N/A";
 
-  const isInStock = true; // Replace with actual inventory logic
   const handleSubmit = (e) => {
-      e.preventDefault();
-      post(route('supply_officer.store_ics'));
+    e.preventDefault();
+    setShowConfirm(true); // open confirmation dialog
+  };
+
+  const confirmSubmit = () => {
+    post(route("supply_officer.store_ics"), {
+      preserveScroll: true,
+      onSuccess: () => {
+        toast({
+          title: "✅ Success",
+          description: "ICS issuance submitted successfully!",
+          className: "bg-green-600 text-white",
+        });
+        setShowConfirm(false);
+      },
+      onError: () => {
+        toast({
+          title: "❌ Error",
+          description: "Failed to submit ICS issuance.",
+          variant: "destructive",
+        });
+        setShowConfirm(false);
+      }
+    });
   };
 
   return (
@@ -42,13 +67,27 @@ export default function IcsForm({ purchaseOrder, inventoryItem, user }) {
       >
         ← Back
       </button>
+
       <div className="bg-blue-50 p-8 rounded-xl shadow-md">
         <h2 className="text-3xl font-bold text-blue-800 mb-1 flex items-center gap-2">
           <FileText size={24} /> Inventory Custodian Slip (ICS)
         </h2>
         <p className="text-sm text-gray-700 mb-6">
-          <strong>Note:</strong> This item is categorized as <em>Semi-Expendable (Below 50k)</em> and will be issued using an ICS form.
+          <strong>Note:</strong> This item is categorized as{" "}
+          <em>Semi-Expendable (Below 50k)</em> and will be issued using an ICS form.
         </p>
+
+        {/* Errors */}
+        {Object.keys(errors).length > 0 && (
+          <div className="col-span-2 bg-red-100 text-red-700 p-4 rounded mb-4">
+            <ul className="list-disc list-inside">
+              {Object.entries(errors).map(([key, message]) => (
+                <li key={key}>{message}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Left Section */}
           <div className="space-y-4">
@@ -71,16 +110,6 @@ export default function IcsForm({ purchaseOrder, inventoryItem, user }) {
                 className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white"
               />
             </div>
-
-            {/* <div>
-              <label className="block text-sm font-medium text-gray-700">Purpose</label>
-              <textarea
-                value={pr?.purpose ?? "N/A"}
-                rows="3"
-                readOnly
-                className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white"
-              />
-            </div> */}
 
             <div>
               <label className="block text-sm font-medium text-gray-700">Description</label>
@@ -171,19 +200,47 @@ export default function IcsForm({ purchaseOrder, inventoryItem, user }) {
               ></textarea>
             </div>
           </div>
+
           <div className="col-span-full flex justify-end mt-4">
             <button
               type="submit"
-              className="inline-flex items-center px-6 py-2 bg-blue-700 text-white text-sm font-medium rounded-md hover:bg-blue-800 transition"
+              disabled={processing}
+              className="inline-flex items-center px-6 py-2 bg-blue-700 text-white text-sm font-medium rounded-md hover:bg-blue-800 transition disabled:opacity-50"
             >
               <SendHorizonal size={16} className="mr-2" />
-              Submit Issuance
+              {processing ? "Submitting..." : "Submit Issuance"}
             </button>
           </div>
         </form>
-
-        
       </div>
+
+      {/* ✅ Confirmation Modal */}
+      {showConfirm && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
+          <div className="bg-white p-6 rounded-lg shadow-md max-w-md w-full">
+            <h3 className="text-lg font-semibold mb-4 text-gray-800">
+              Confirm Submission
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to submit this ICS issuance?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSubmit}
+                className="px-4 py-2 bg-blue-700 text-white rounded-md hover:bg-blue-800"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </SupplyOfficerLayout>
   );
 }

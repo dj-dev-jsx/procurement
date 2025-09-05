@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('tbl_inspection_committees', function (Blueprint $table) {
             $table->id();
-            $table->string('inspection_committee_status');
+            $table->string('inspection_committee_status')->default('active');
             $table->timestamps();
         });
 

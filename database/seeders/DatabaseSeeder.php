@@ -24,7 +24,7 @@ class DatabaseSeeder extends Seeder
             RequestingSeeder::class,
             SupplierSeeder::class,
             UserSeeder::class,
-            
+            InspectionCommitteeSeeder::class
         ]);
     }
 

@@ -23,6 +23,9 @@ export default function AbstractOfQuotations({ rfq, groupedDetails = {}, committ
   const [selectedWinner, setSelectedWinner] = useState({ rfqId: null, supplierId: null });
   const [committeeDialogOpen, setCommitteeDialogOpen] = useState(false);
   const { toast } = useToast();
+  const [selectedMember, setSelectedMember] = useState(null);
+  const [replacementName, setReplacementName] = useState("");
+
 
 
   // Initialize committee state from props
@@ -84,13 +87,23 @@ const handleConfirmSaveCommittee = () => {
     setWinnerDialogOpen(true);
   };
 
-  const handleConfirmWinner = () => {
-    router.post(
-      route("bac_approver.mark_winner", { id: selectedWinner.rfqId }),
-      { supplier_id: selectedWinner.supplierId, remarks },
-      { preserveScroll: true, onSuccess: () => setWinnerDialogOpen(false) }
-    );
-  };
+const handleConfirmWinner = () => {
+  router.post(
+    route("bac_approver.mark_winner", { id: selectedWinner.rfqId }),
+    { supplier_id: selectedWinner.supplierId, remarks },
+    {
+      preserveScroll: true,
+      onSuccess: () => {
+        setWinnerDialogOpen(false);
+        toast({
+          title: "Winner Marked",
+          description: "Supplier has been successfully awarded.",
+          duration: 3000,
+        });
+      },
+    }
+  );
+};
 
   // --- Process supplier data ---
   const supplierMap = {};
@@ -200,29 +213,51 @@ const handleConfirmSaveCommittee = () => {
           </table>
         </div>
 
-        {/* BAC Committee */}
+
         <div className="mb-8 p-4 border rounded-lg bg-gray-50 shadow-sm">
           <h3 className="text-lg font-semibold mb-4">BAC Committee</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            {Object.entries(committeeState.members).map(([position, info]) => (
-              <div key={position}>
-                <label className="block text-sm font-medium mb-1">
-                  {position.replace("_", " ").toUpperCase()}
-                </label>
-                <input
-                  type="text"
-                  value={info.name}
-                  onChange={(e) => handleCommitteeChange(position, e.target.value)}
-                  className="w-full border px-3 py-2 rounded mb-1"
-                />
-              </div>
-            ))}
-          </div>
-          <div className="mt-4">
-            <Button onClick={handleSaveCommittee}>Save BAC Committee</Button>
+          <ul className="space-y-3">
+            {[
+              "chair",
+              "vice_chair",
+              "secretariat",
+              "member1",
+              "member2",
+              "member3",
+            ].map((position) => {
+              const info = committeeState.members[position];
+              return (
+                <li
+                  key={position}
+                  className="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm"
+                >
+                  <div>
+                    <p className="font-semibold">
+                      {info?.name || "—"}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {position.replace("_", " ").toUpperCase()}
+                    </p>
+                  </div>
 
-          </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedMember({ position, current: info });
+                      setReplacementName("");
+                      setCommitteeDialogOpen(true);
+                    }}
+                  >
+                    Replace
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
         </div>
+
+
       </div>
 
       {/* WINNER CONFIRMATION DIALOG */}
@@ -254,22 +289,61 @@ const handleConfirmSaveCommittee = () => {
       <Dialog open={committeeDialogOpen} onOpenChange={setCommitteeDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirm Save</DialogTitle>
+            <DialogTitle>Replace Committee Member</DialogTitle>
             <DialogDescription>
-              Are you sure you want to save the changes to the BAC Committee?
+              Enter a new member to replace{" "}
+              <strong>{selectedMember?.current?.name || "N/A"}</strong> (
+              {selectedMember?.position.replace("_", " ").toUpperCase()}).
             </DialogDescription>
           </DialogHeader>
 
+          <input
+            type="text"
+            value={replacementName}
+            onChange={(e) => setReplacementName(e.target.value)}
+            placeholder="Enter new member name"
+            className="w-full border px-3 py-2 rounded mb-2"
+          />
+
           <DialogFooter className="mt-4">
-            <Button variant="secondary" onClick={() => setCommitteeDialogOpen(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => setCommitteeDialogOpen(false)}
+            >
               Cancel
             </Button>
-            <Button onClick={handleConfirmSaveCommittee}>
+            <Button
+              onClick={() => {
+                if (!replacementName.trim()) return;
+
+                setCommitteeState((prev) => ({
+                  ...prev,
+                  members: {
+                    ...prev.members,
+                    [selectedMember.position]: {
+                      name: replacementName.trim(),
+                      status: "active",
+                    },
+                  },
+                }));
+
+                setCommitteeDialogOpen(false);
+                toast({
+                  title: "Member Replaced",
+                  description: `${selectedMember.position.replace(
+                    "_",
+                    " "
+                  )} updated successfully.`,
+                  duration: 3000,
+                });
+              }}
+            >
               Confirm
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
 
     </ApproverLayout>

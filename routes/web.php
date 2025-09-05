@@ -114,12 +114,15 @@ Route::middleware(['auth', 'role:supply_officer'])->prefix('supply_officer')->gr
     Route::get('/issuance/{po_id}/{inventory_id}', [SupplyController::class, 'issuance'])->name('supply_officer.issuance');
     Route::post('/store_ris', [SupplyController::class, 'store_ris'])->name('supply_officer.store_ris');
     Route::post('/store_ics', [SupplyController::class, 'store_ics'])->name('supply_officer.store_ics');
+    Route::post('/store_par', [SupplyController::class, 'store_par'])->name('supply_officer.store_par');
     Route::get('/ris_issuance', [SupplyController::class, 'ris_issuance'])->name('supply_officer.ris_issuance');
     Route::get('/ics_issuance_low', [SupplyController::class, 'ics_issuance_low'])->name('supply_officer.ics_issuance_low');
     Route::get('/ics_issuance_high', [SupplyController::class, 'ics_issuance_high'])->name('supply_officer.ics_issuance_high');
     Route::get('/par_issuance', [SupplyController::class, 'par_issuance'])->name('supply_officer.par_issuance');
     Route::get('/export_excel', [SupplyController::class, 'export_excel'])->name('supply_officer.export_excel');
     Route::get('/export_excel_monthly', [SupplyController::class, 'export_excel_monthly'])->name('supply_officer.export_excel_monthly');
+    Route::post('/inspection-committee/{id}/replace-member', [SupplyController::class, 'replaceMember'])->name('inspection.committee.save');
+
 });
 // Shared dashboard route
 Route::get('/dashboard', function () {

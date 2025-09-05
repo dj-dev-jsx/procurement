@@ -15,7 +15,7 @@ import NavLink from '@/Components/NavLink';
 import Dropdown from '@/Components/Dropdown';
 import axios from 'axios';
 import { BoxesIcon, ClipboardCheck, PackageCheck } from 'lucide-react';
-import { Toaster } from 'sonner';
+import { Toaster } from "@/components/ui/toaster";
 
 function PORequestsDropdown({ isSidebarCollapsed }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -233,6 +233,7 @@ export default function SupplyOfficerLayout({ header, children }) {
         <main className="p-6 flex-1 overflow-y-auto bg-gray-300">
           {children}
         </main>
+        <Toaster />
         {/* <footer className="bg-gray-900 text-gray-300 sticky">
           <div className="max-w-7xl mx-auto px-6 py-10 grid grid-cols-1 md:grid-cols-3 gap-8">
             

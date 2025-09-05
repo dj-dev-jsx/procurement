@@ -14,6 +14,7 @@ return new class extends Migration
     Schema::create('tbl_par', function (Blueprint $table) {
         $table->id();
         $table->foreignId('inventory_item_id')->constrained('tbl_inventory')->onDelete('cascade');
+        $table->foreignId('po_id')->constrained('tbl_purchase_orders')->onDelete('cascade');
         $table->string('par_number')->unique();
         $table->foreignId('received_by')->constrained('users');
         $table->foreignId('issued_by')->constrained('users');

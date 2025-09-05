@@ -20,11 +20,16 @@ class IAR extends Model
         'unit_price',
         'total_price',
         'remarks',
-        'inspected_by',
+        'inspection_committee_id',
         'date_received',
     ];
 
     public function purchaseOrder() {
         return $this->belongsTo(PurchaseOrder::class, 'po_id');
     }
+        public function inspectionCommittee()
+            {
+                return $this->belongsTo(InspectionCommittee::class, 'inspection_committee_id');
+            }
+
 }
