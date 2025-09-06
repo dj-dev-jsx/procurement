@@ -50,9 +50,12 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::get('/view_users', [AdminController::class, 'view_users'])->name('admin.view_users');
     Route::get('/create_user_form', [AdminController::class, 'create_user_form'])->name('admin.create_user_form');
     Route::post('/store_user',[AdminController::class, 'store_user'])->name('admin.store_user');
-    Route::get('/requesitioning', [AdminController::class, 'requesting_officers'])->name('admin.requesting');
+    Route::get('/settings', [AdminController::class, 'settings'])->name('admin.settings');
     Route::get('/edit_requesitioning{division}', [AdminController::class, 'edit_requesting'])->name('admin.edit_requesting');
-     Route::put('/requesting-officers/{division}', [AdminController::class, 'update_requesting'])->name('admin.update_requesting');
+    Route::post('/requesting-officers/{division}', [AdminController::class, 'update_requesting'])->name('admin.update_requesting');
+    Route::get('/admin/audit-logs', [AdminController::class, 'audit_logs'])->name('admin.audit_logs');
+    Route::post('/admin/inspection/{committee}/update', [AdminController::class, 'updateInspection'])->name('admin.update_inspection');
+    Route::post('/admin/bac/{committee}/update', [AdminController::class, 'updateBac'])->name('admin.update_bac');
 });
 
 // Requester routes

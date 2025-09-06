@@ -1,5 +1,5 @@
 import AdminLayout from "@/Layouts/AdminLayout";
-import { PencilSquareIcon, TrashIcon, UserCircleIcon } from "@heroicons/react/24/solid"; // Added UserCircleIcon
+import { PencilSquareIcon, TrashIcon, UserCircleIcon } from "@heroicons/react/24/solid";
 import { Head, Link, useForm, usePage } from "@inertiajs/react";
 import {
     Dialog,
@@ -9,50 +9,73 @@ import {
     DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
+
+// ✅ import toast
+import { useToast } from "@/hooks/use-toast";
 
 export default function Users({ users, filters }) {
     const { props } = usePage();
     const success = props.flash?.success;
+    const error = props.flash?.error;
     const [open, setOpen] = useState(false);
-    const {data, setData, get} = useForm({
+    const { data, setData, get } = useForm({
         search: filters.search || "",
         division: filters.division || ""
-    })
-    useEffect(() => {
-    const delayDebounce = setTimeout(() => {
-        get(route("admin.view_users"), {
-        preserveState: true,
-        replace: true,
-        });
-    }, 300);
+    });
 
-    return () => clearTimeout(delayDebounce);
+    const { toast } = useToast(); // ✅ initialize toast
+
+    useEffect(() => {
+        const delayDebounce = setTimeout(() => {
+            get(route("admin.view_users"), {
+                preserveState: true,
+                replace: true,
+            });
+        }, 300);
+        return () => clearTimeout(delayDebounce);
     }, [data.search, data.division]);
 
+    // ✅ show toast + dialog if success/error
     useEffect(() => {
         if (success) {
-            setOpen(true); 
+            toast({
+                title: "✅ Success",
+                description: success,
+            });
+            setOpen(true);
         }
-    }, [success]);
+        if (error) {
+            toast({
+                title: "❌ Error",
+                description: error,
+                variant: "destructive",
+            });
+        }
+    }, [success, error]);
 
     // Placeholder functions for actions
     const handleEdit = (userId) => {
         console.log(`Editing user with ID: ${userId}`);
-        // Implement your edit logic here, e.g., redirect to an edit page
     };
 
     const handleDelete = (userId) => {
         console.log(`Deleting user with ID: ${userId}`);
-        // Implement your delete logic here, e.g., show a confirmation dialog
     };
 
     return (
         <AdminLayout
-            header={
-                'Schools Division Office - Ilagan | Users'
-            }
+            header={'Schools Division Office - Ilagan | Users'}
         >
             <Head title="Users" />
             <div className=" rounded-lg mb-6">
@@ -92,116 +115,103 @@ export default function Users({ users, filters }) {
             </div>
 
             <div className="overflow-x-auto bg-white rounded-lg shadow-md">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50 border">
-                        <tr>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border">
-                                ID
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border">
-                                Name
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border">
-                                Email
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border">
-                                Division
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border">
-                                Position
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border">
-                                Role
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider border">
-                                Actions
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>ID</TableHead>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Email</TableHead>
+                            <TableHead>Division</TableHead>
+                            <TableHead>Position</TableHead>
+                            <TableHead>Role</TableHead>
+                            <TableHead className="text-center">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
                         {users.data && users.data.length > 0 ? (
                             users.data.map((user) => (
-                                <tr key={user.id} className="hover:bg-blue-100 transition duration-150 ease-in-out border">
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border">
-                                        {user.id}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 border">
-                                        <div className="flex items-center"> {/* Flex container for icon and text */}
-                                            <UserCircleIcon className="w-5 h-5 text-gray-400 mr-2" /> {/* User icon */}
+                                <TableRow key={user.id} className="hover:bg-blue-50 transition duration-150">
+                                    <TableCell className="font-medium">{user.id}</TableCell>
+                                    <TableCell>
+                                        <div className="flex items-center">
+                                            <UserCircleIcon className="w-5 h-5 text-gray-400 mr-2" />
                                             {user.firstname} {user.middleinitial} {user.lastname}
                                         </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 border">
-                                        {user.email}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 border">
+                                    </TableCell>
+                                    <TableCell>{user.email}</TableCell>
+                                    <TableCell>
                                         {user.division?.division || <span className="text-gray-500 italic">N/A</span>}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 border">
+                                    </TableCell>
+                                    <TableCell>
                                         {user.position || <span className="text-gray-500 italic">N/A</span>}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 border">
-                                        {user.roles.map((role, idx) => (
-                                            <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-700 rounded">
-                                            {role.name.replace(/_/g, ' ')
-                                                .replace(/\b\w/g, c => c.toUpperCase())}
-                                            </span>
-                                        ))}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium border">
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex flex-wrap gap-1">
+                                            {user.roles.map((role, idx) => (
+                                                <span
+                                                    key={idx}
+                                                    className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs"
+                                                >
+                                                    {role.name
+                                                        .replace(/_/g, " ")
+                                                        .replace(/\b\w/g, (c) => c.toUpperCase())}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-center">
                                         <button
                                             onClick={() => handleEdit(user.id)}
-                                            className="inline-flex items-center px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out mr-2"
+                                            className="inline-flex items-center px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 transition mr-2"
                                             title="Edit User"
                                         >
                                             <PencilSquareIcon className="w-4 h-4" />
                                         </button>
                                         <button
                                             onClick={() => handleDelete(user.id)}
-                                            className="inline-flex items-center px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition duration-150 ease-in-out"
+                                            className="inline-flex items-center px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 transition"
                                             title="Delete User"
                                         >
                                             <TrashIcon className="w-4 h-4" />
                                         </button>
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             ))
                         ) : (
-                            <tr>
-                                <td colSpan="6" className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
+                            <TableRow>
+                                <TableCell colSpan={7} className="text-center py-6 text-gray-500">
                                     No users found.
-                                </td>
-                            </tr>
+                                </TableCell>
+                            </TableRow>
                         )}
-                    </tbody>
-                </table>
+                    </TableBody>
+                </Table>
+
                 {/* Pagination */}
                 <div className="flex items-center justify-center space-x-1 mt-6">
-                {users.links.map((link, index) => (
-                    <Link
-                    key={index}
-                    href={link.url || "#"}
-                    className={`
-                        min-w-[40px] px-3 py-2 text-sm font-medium rounded-lg transition
-                        ${link.active 
-                        ? "bg-blue-600 text-white shadow-md" 
-                        : "bg-white text-gray-700 border hover:bg-blue-50"
-                        }
-                        ${!link.url ? "cursor-not-allowed opacity-50" : ""}
-                    `}
-                    dangerouslySetInnerHTML={{ __html: link.label }}
-                    />
-                ))}
+                    {users.links.map((link, index) => (
+                        <Link
+                            key={index}
+                            href={link.url || "#"}
+                            className={`
+                                min-w-[40px] px-3 py-2 text-sm font-medium rounded-lg transition
+                                ${link.active
+                                    ? "bg-blue-600 text-white shadow-md"
+                                    : "bg-white text-gray-700 border hover:bg-blue-50"}
+                                ${!link.url ? "cursor-not-allowed opacity-50" : ""}
+                            `}
+                            dangerouslySetInnerHTML={{ __html: link.label }}
+                        />
+                    ))}
                 </div>
-
             </div>
+
+            {/* Keep dialog for strong confirmation */}
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Success</DialogTitle>
-                        <DialogDescription>
-                            {success}
-                        </DialogDescription>
+                        <DialogDescription>{success}</DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
                         <Button onClick={() => setOpen(false)}>Close</Button>

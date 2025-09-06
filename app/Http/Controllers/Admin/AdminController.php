@@ -3,7 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLogs;
+use App\Models\BacCommittee;
+use App\Models\BacCommitteeMember;
 use App\Models\Division;
+use App\Models\InspectionCommittee;
+use App\Models\InspectionCommitteeMember;
 use App\Models\RequestedBy;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -76,17 +81,38 @@ class AdminController extends Controller
         ->with('success', 'User created successfully.');
     }
 
-    public function requesting_officers(){
-        $divisions = Division::with(['activeOfficer'])->get();
-            return inertia('Admin/Requesting', [
-            'divisions' => $divisions,
-        ]);
-    }
+    public function settings()
+{
+    $divisions = Division::with(['activeOfficer'])->get();
+
+    // Get active inspection members
+    $inspectionTeam = InspectionCommitteeMember::where('status', 'active')->get();
+
+    // Get active BAC members
+    $bacCommittee = BacCommitteeMember::where('status', 'active')->get();
+
+    return inertia('Admin/Settings', [
+        'divisions' => $divisions,
+        'inspectionCommittees' => $inspectionTeam,
+        'bacCommittees' => $bacCommittee,
+    ]);
+}
     public function edit_requesting(Division $division)
     {
         return inertia('Admin/EditRequesting', [
             'division' => $division,
             'activeOfficer' => $division->activeOfficer, // eager-loaded in model
+        ]);
+    }
+
+
+    public function audit_logs(){
+        $logs = AuditLogs::with('user') // assuming relation
+            ->latest()
+            ->get();
+
+        return Inertia::render('Admin/AuditLogs', [
+            'logs' => $logs,
         ]);
     }
     public function update_requesting(Request $request, Division $division)
@@ -107,7 +133,60 @@ class AdminController extends Controller
             'status' => 'active',
         ]);
 
-        return redirect()->route('admin.requesting')
+        return redirect()->route('admin.settings')
             ->with('success', 'Requisitioning officer updated successfully.');
     }
+    public function updateInspection(Request $request, InspectionCommittee $committee)
+    {
+        $request->validate([
+            'members' => 'required|array',
+            'members.*.position' => 'required|string|max:255',
+            'members.*.name' => 'required|string|max:255',
+        ]);
+
+        // Deactivate old members
+        InspectionCommitteeMember::where('inspection_committee_id', $committee->id)
+            ->where('status', 'active')
+            ->update(['status' => 'inactive']);
+
+        // Add new members
+        foreach ($request->members as $member) {
+            InspectionCommitteeMember::create([
+                'inspection_committee_id' => $committee->id,
+                'position' => $member['position'],
+                'name' => $member['name'],
+                'status' => 'active',
+            ]);
+        }
+
+        return redirect()->route('admin.settings')
+            ->with('success', 'Inspection committee updated successfully.');
+    }
+
+    public function updateBac(Request $request, BacCommittee $committee)
+    {
+        $request->validate([
+            'members' => 'required|array',
+            'members.*.position' => 'required|string|max:255',
+            'members.*.name' => 'required|string|max:255',
+        ]);
+
+        // Deactivate old members
+        BacCommitteeMember::where('committee_id', $committee->id)
+            ->where('status', 'active')
+            ->update(['status' => 'inactive']);
+
+        // Add new members
+        foreach ($request->members as $member) {
+            BacCommitteeMember::create([
+                'committee_id' => $committee->id,
+                'position' => $member['position'],
+                'name' => $member['name'],
+                'status' => 'active',
+            ]);
+        }
+
+        return redirect()->route('admin.settings')
+            ->with('success', 'BAC committee updated successfully.');
+    } 
 }

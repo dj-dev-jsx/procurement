@@ -95,10 +95,20 @@ useEffect(() => {
       const newUnread = notificationsWithReadFlag.filter(n => !n.read).length;
       const prevUnread = notifications.filter(n => !n.read).length;
 
-      // Only show flash if this is not the initial load and new unread notifications appeared
       if (hasInitialized && newUnread > prevUnread) {
-        triggerFlash('📬 A purchase request has been approved!');
+        // find the newest unread notification
+        const latestNotification = notificationsWithReadFlag.find(n => !n.read);
+
+        if (latestNotification) {
+          const message =
+            latestNotification.data?.message ||
+            latestNotification.message ||
+            "📬 You have a new purchase request update!";
+
+          triggerFlash(message);
+        }
       }
+
 
       setNotifications(notificationsWithReadFlag);
 
@@ -226,7 +236,7 @@ useEffect(() => {
                 <ClipboardDocumentListIcon className="w-5 h-5 text-gray-300" />
                 <span className="text-white font-medium">Manage Requests</span>
               </NavLink>
-              <NavLink
+              {/* <NavLink
                 href="#"
                 className="flex items-center gap-2 px-4 py-2 hover:bg-indigo-600 rounded-lg"
               >
@@ -246,7 +256,7 @@ useEffect(() => {
               >
                 <XCircleIcon className="w-5 h-5 text-gray-300" />
                 <span className="text-white font-medium">Disapproved</span>
-              </NavLink>
+              </NavLink> */}
             </div>
 
           </nav>
@@ -390,14 +400,38 @@ useEffect(() => {
       </div>
     </div>
     {showReasonModal && (
-      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-[10000]">
-        <div className="bg-white rounded-lg shadow-lg p-6 w-96">
-          <h2 className="text-lg font-semibold mb-3">Reason for Send Back</h2>
-          <p className="text-gray-700 whitespace-pre-line">{selectedReason}</p>
-          <div className="mt-4 text-right">
+      <div className="fixed inset-0 flex items-center justify-center z-[10000]">
+        {/* Overlay with blur + fade */}
+        <div
+          className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity animate-fadeIn"
+          onClick={() => setShowReasonModal(false)}
+        />
+
+        {/* Modal content */}
+        <div className="relative bg-white rounded-2xl shadow-2xl w-[90%] max-w-md p-6 animate-scaleIn">
+          {/* Header */}
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Reason for Send Back
+            </h2>
             <button
               onClick={() => setShowReasonModal(false)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md"
+              className="text-gray-400 hover:text-gray-600 transition"
+            >
+              <XMarkIcon className="w-6 h-6" />
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="text-gray-700 whitespace-pre-line bg-gray-50 p-4 rounded-lg border border-gray-200">
+            {selectedReason}
+          </div>
+
+          {/* Footer */}
+          <div className="mt-6 flex justify-end">
+            <button
+              onClick={() => setShowReasonModal(false)}
+              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-md transition"
             >
               Close
             </button>
@@ -405,6 +439,7 @@ useEffect(() => {
         </div>
       </div>
     )}
+
 
     </>
   );

@@ -10,7 +10,8 @@ import {
 import NavLink from '@/Components/NavLink';
 import Dropdown from '@/Components/Dropdown';
 import logo from '../src/deped1.png';
-import { UserCog, Users } from 'lucide-react';
+import { Settings, UserCog, Users } from 'lucide-react';
+import { Toaster } from '@/Components/ui/toaster';
 
 // function PurchaseRequestsDropdown({ isSidebarCollapsed }) {
 //   const [isOpen, setIsOpen] = useState(false);
@@ -132,13 +133,22 @@ export default function AdminLayout({ header, children }) {
               <span className="text-white font-medium">Users</span>
             </NavLink>
             <NavLink
-              href={route('admin.requesting')}
-              active={route().current('admin.requesting')}
+              href={route('admin.settings')}
+              active={route().current('admin.settings')}
               className="flex items-center gap-2 px-4 py-2 hover:bg-indigo-600 rounded-lg transition-all duration-200"
             >
-              <UserCog className="w-5 h-5 text-gray-300" />
-              <span className="text-white font-medium">Requisitioning Officers</span>
+              <Settings className="w-5 h-5 text-gray-300" />
+              <span className="text-white font-medium">System Settings</span>
             </NavLink>
+            <NavLink
+              href={route('admin.audit_logs')}
+              active={route().current('admin.audit_logs')}
+              className="flex items-center gap-2 px-4 py-2 hover:bg-indigo-600 rounded-lg transition-all duration-200"
+            >
+              <ClipboardDocumentIcon className="w-5 h-5 text-gray-300" />
+              <span className="text-white font-medium">Audit Logs</span>
+            </NavLink>
+
             {/* <PurchaseRequestsDropdown isSidebarCollapsed={false} /> */}
           </nav>
         </div>
@@ -179,6 +189,7 @@ export default function AdminLayout({ header, children }) {
         </header>
 
         <main className="p-6 flex-1 overflow-y-auto bg-gray-300">{children}</main>
+        <Toaster/>
       </div>
     </div>
   );
