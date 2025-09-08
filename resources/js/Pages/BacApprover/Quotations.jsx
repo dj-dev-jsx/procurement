@@ -11,7 +11,7 @@ export default function Quotation({ purchaseRequests, filters = {} }) {
   useEffect(() => {
     const timeout = setTimeout(() => {
       router.get(
-        route("bac_approver.quotation"),
+        route("bac_approver.for_quotations"),
         { prNumber, focalPerson, division },
         { preserveState: true, preserveScroll: true, replace: true }
       );
@@ -101,15 +101,25 @@ export default function Quotation({ purchaseRequests, filters = {} }) {
 
                   return (
                     <tr key={pr.id} className="hover:bg-blue-50 text-center">
-                      <td className="px-4 py-2 text-indigo-600 font-semibold">
-                        <TooltipLink
-                          to={route("bac_approver.abstract_of_quotations", pr.id)}
-                          tooltip="View Abstract of Quotations"
-                          className="hover:underline"
-                        >
-                          {pr.pr_number}
-                        </TooltipLink>
-                      </td>
+                        <td className="px-4 py-2 font-semibold">
+                          {pr.rfqs && pr.rfqs.length > 0 ? (
+                            <TooltipLink
+                              to={route("bac_approver.abstract_of_quotations", pr.id)}
+                              tooltip="View Abstract of Quotations"
+                              className="text-indigo-600 hover:underline"
+                            >
+                              {pr.pr_number}
+                            </TooltipLink>
+                          ) : (
+                            <div className="flex flex-col items-center text-gray-400">
+                              <span className="cursor-not-allowed">{pr.pr_number}</span>
+                              <small className="text-xs italic text-red-500">
+                                No quotations yet
+                              </small>
+                            </div>
+                          )}
+                        </td>
+
                       <td className="px-4 py-2 text-gray-700">
                         {[pr.focal_person.firstname, pr.focal_person.middlename, pr.focal_person.lastname]
                           .filter(Boolean)

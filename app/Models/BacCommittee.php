@@ -21,5 +21,6 @@ class BacCommittee extends Model
     {
         return $this->hasMany(BacCommitteeMember::class, 'committee_id');
     }
+    
 
 }

@@ -47,6 +47,7 @@ class AdminController extends Controller
             ]
         ]);
     }
+    
     public function dashboard() {
         return Inertia::render('Admin/Dashboard');
     }

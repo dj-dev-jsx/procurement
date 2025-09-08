@@ -463,7 +463,7 @@ public function store_iar(Request $request)
             'po_id'         => $validated['po_id'],
             'item_desc'     => $item['specs'],
             'total_stock'   => $item['quantity_received'],
-            'unit'          => $unitId,
+            'unit_id'          => $unitId,
             'unit_cost'     => $item['unit_price'],
             'last_received' => $validated['date_received'],
             'status'        => 'Available',
@@ -614,7 +614,7 @@ public function issuance($po_id, $inventory_id) // <-- Accepts both IDs
         // Find the detail whose product specs and unit match the inventory item
         if (
             $detail->prDetail && $detail->prDetail->product &&
-            $detail->prDetail->product->unit_id === $inventoryItem->unit
+            $detail->prDetail->product->unit_id === $inventoryItem->unit_id
         ) {
             $correctDetail = $detail;
             break; // Stop searching once we find the match
@@ -698,47 +698,39 @@ public function issuance($po_id, $inventory_id) // <-- Accepts both IDs
             return back()->withErrors(['error' => 'Failed to store RIS. ' . $e->getMessage()]);
         }
     }
-    public function ris_issuance(Request $request)
-    {
-        $search = $request->input('search');
+public function ris_issuance(Request $request)
+{
+    $search = $request->input('search');
 
-        // Get ALL POs with nested relationships
-        $purchaseOrders = PurchaseOrder::with([
-            'details.prDetail.product.category', 
-            'details.prDetail.product.unit',
-            'details.prDetail.purchaseRequest.division',
-            'details.prDetail.purchaseRequest.focal_person'
-        ])->get();
-        $ris = RIS::with(['issuedTo', 'issuedBy', 'inventoryItem', 'po'])->get();
+    // Load POs with all needed relationships
+    $purchaseOrders = PurchaseOrder::with([
+        'details.prDetail.product.category',
+        'details.prDetail.product.unit',
+        'details.prDetail.purchaseRequest.division',
+        'details.prDetail.purchaseRequest.focal_person',
+    ])->latest()->paginate(10);
+    
 
-        // Map all related inventory items (optional)
-        $inventoryItems = [];
+    // Collect all products
+    $products = $purchaseOrders->flatMap(fn($po) => 
+        $po->details->pluck('prDetail.product')
+    )->filter();
 
-        foreach ($purchaseOrders as $po) {
-            foreach ($po->details as $detail) {
-                $product = $detail->prDetail->product ?? null;
 
-                if ($product) {
-                    $inventory = Inventory::where('item_desc', $product->specs)
-                        ->where('unit', $product->unit_id)
-                        ->first();
+    // Batch fetch inventory
+    $inventoryItems = Inventory::whereIn('item_desc', $products->pluck('specs'))
+    ->whereIn('unit_id', $products->pluck('unit_id'))
+    ->get();
+$ris = RIS::with(['issuedTo', 'issuedBy', 'inventoryItem', 'po'])->paginate(10);
 
-                    $inventoryItems[] = [
-                        'po_id' => $po->id,
-                        'item_desc' => $product->specs,
-                        'inventory' => $inventory,
-                    ];
-                }
-            }
-        }
+    return Inertia::render('Supply/Ris', [
+        'ris' => $ris,
+        'purchaseOrders' => $purchaseOrders,
+        'inventoryItems' => $inventoryItems,
+        'user' => Auth::user(),
+    ]);
+}
 
-        return Inertia::render('Supply/Ris', [
-            'purchaseOrders' => $purchaseOrders,
-            'inventoryItems' => $inventoryItems,
-            'ris' => $ris,
-            'user' => Auth::user(), 
-        ]);
-    }
 
     public function store_ics(Request $request)
     {
@@ -888,8 +880,8 @@ public function issuance($po_id, $inventory_id) // <-- Accepts both IDs
             'details.prDetail.product.unit',
             'details.prDetail.purchaseRequest.division',
             'details.prDetail.purchaseRequest.focal_person'
-        ])->get();
-        $ics = ICS::with(['receivedBy', 'receivedFrom', 'inventoryItem', 'po'])->get();
+        ])->paginate(10);
+        $ics = ICS::with(['receivedBy', 'receivedFrom', 'inventoryItem', 'po'])->latest()->paginate(10);
 
         // Map all related inventory items (optional)
         $inventoryItems = [];
@@ -900,7 +892,7 @@ public function issuance($po_id, $inventory_id) // <-- Accepts both IDs
 
                 if ($product) {
                     $inventory = Inventory::where('item_desc', $product->specs)
-                        ->where('unit', $product->unit_id)
+                        ->where('unit_id', $product->unit_id)
                         ->first();
 
                     $inventoryItems[] = [
@@ -952,7 +944,7 @@ public function ics_issuance_high(Request $request)
         $icsQuery->whereYear('created_at', $request->input('year'));
     }
 
-    $icsRecords = $icsQuery->latest()->get();
+    $icsRecords = $icsQuery->latest()->latest()->paginate(10);
 
     return Inertia::render('Supply/IcsHigh', [
         'icsRecords' => $icsRecords,
@@ -970,8 +962,15 @@ public function ics_issuance_high(Request $request)
             'details.prDetail.product.unit',
             'details.prDetail.purchaseRequest.division',
             'details.prDetail.purchaseRequest.focal_person'
-        ])->get();
-        $par = PAR::with(['receivedBy', 'issuedBy', 'inventoryItem', 'po'])->get();
+        ])->latest()->paginate(10);
+        $par = ICS::query()
+        ->where('type', 'high')
+        ->with([
+            'po.rfq.purchaseRequest.division',
+            'po.rfq.purchaseRequest.focal_person',
+            'inventoryItem.unit',
+            'receivedBy',
+        ])->paginate(10);
 
         // Map all related inventory items (optional)
         $inventoryItems = [];
@@ -982,7 +981,7 @@ public function ics_issuance_high(Request $request)
 
                 if ($product) {
                     $inventory = Inventory::where('item_desc', $product->specs)
-                        ->where('unit', $product->unit_id)
+                        ->where('unit_id', $product->unit_id)
                         ->first();
 
                     $inventoryItems[] = [

@@ -9,6 +9,35 @@ class ProductSeeder extends Seeder
 {
     public function run(): void
     {
+        // $faker = Faker::create();
+
+        // // Ensure we actually have categories, units, supplier categories
+        // $categoryIds = DB::table('tbl_categories')->pluck('id')->toArray();
+        // $unitIds = DB::table('tbl_units')->pluck('id')->toArray();
+        // $supplierCategoryIds = DB::table('tbl_supplier_categories')->pluck('id')->toArray();
+
+        // if (empty($categoryIds) || empty($unitIds)) {
+        //     throw new \Exception("Seed tbl_categories and tbl_units before seeding products.");
+        // }
+
+        // $products = [];
+
+        // foreach (range(1, 50) as $i) {
+        //     $unitCost = $faker->randomFloat(2, 100, 20000);
+
+        //     $products[] = [
+        //         'name'                 => $faker->words(3, true),
+        //         'specs'                => $faker->sentence(),
+        //         'unit_id'              => $faker->randomElement($unitIds),
+        //         'category_id'          => $faker->randomElement($categoryIds), // always valid
+        //         'supplier_category_id' => !empty($supplierCategoryIds) ? $faker->randomElement($supplierCategoryIds) : null,
+        //         'default_price'        => $unitCost,
+        //         'created_at'           => now(),
+        //         'updated_at'           => now(),
+        //     ];
+        // }
+
+        // DB::table('tbl_products')->insert($products);
         DB::table('tbl_products')->insert([
             [
                 'name' => 'Printer A',

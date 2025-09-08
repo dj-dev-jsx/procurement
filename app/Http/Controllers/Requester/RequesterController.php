@@ -146,7 +146,9 @@ class RequesterController extends Controller
         $products = Products::with('unit')
                     ->select('id', 'name', 'specs', 'unit_id', 'default_price')
                     ->get();
-        
+        $latestPr = PurchaseRequest::latest()->value('pr_number'); 
+        $units = Unit::all();
+        $categories = Category::all();
 
         return Inertia::render('Requester/Create', [
             'units' => $units,
@@ -154,7 +156,8 @@ class RequesterController extends Controller
             'requestedBy' => $requestedBy,
             'auth' => ['user' => $user],
             'pr_number' => $prNumber,
-            'products' => $products
+            'products' => $products,
+            'latestPr' => $latestPr,
         ]);
     }
     public function create_product()
@@ -179,26 +182,41 @@ class RequesterController extends Controller
     return redirect()->route('requester.create') // go back to PR creation
                      ->with('success', 'Product created successfully!');
     }
-public function store(PurchaseRequestRequest $request)
+public function store(Request $request)
 {   
     
-    $data = $request->validated();
-    DB::beginTransaction();
+    $request->validate([
+        'focal_person' => 'required|exists:users,id',
+        'pr_number' => 'required|string|max:50|unique:tbl_purchase_requests,pr_number',
+        'purpose' => 'nullable|string|max:1000',
+        'division_id' => 'required|exists:tbl_divisions,id',
+        'requested_by' => 'required|string|max:255',
 
-    try {
+        'products.*.product_id' => 'required|exists:tbl_products,id',
+        'products.*.item' => 'required|string|max:255',
+        'products.*.specs' => 'required|string|max:1000',
+        'products.*.unit' => 'required|string|max:50',
+        'products.*.unit_price' => 'nullable|numeric|min:0',
+        'products.*.total_item_price' => 'nullable|numeric|min:0',
+        'products.*.quantity' => 'required|numeric|min:0.01',
+    ]);
+
+    DB::transaction(function () use ($request) {
+        $finalPrNumber = $this->generatePrNumber();
+
         // Step 1: Create the Purchase Request
         $purchaseRequest = PurchaseRequest::create([
-            'focal_person_user' => $data['focal_person'],
-            'pr_number' => $data['pr_number'],
-            'purpose' => $data['purpose'],
-            'division_id' => $data['division_id'],
-            'requested_by' => $data['requested_by'],
+            'focal_person_user' => $request['focal_person'],
+            'pr_number' => $request['pr_number'],
+            'purpose' => $request['purpose'],
+            'division_id' => $request['division_id'],
+            'requested_by' => $request['requested_by'],
         ]);
 
         $totalPRPrice = 0;
 
         // Step 2: Create PR Details
-        foreach ($data['products'] as $item) {
+        foreach ($request['products'] as $item) {
             $totalItemPrice = $item['quantity'] * $item['unit_price'];
             $totalPRPrice += $totalItemPrice;
 
@@ -218,40 +236,38 @@ public function store(PurchaseRequestRequest $request)
         $purchaseRequest->update([
             'total_price' => $totalPRPrice,
         ]);
+    });
 
-        DB::commit();
-
-        return redirect()
-            ->route('requester.manage_requests')
-            ->with('success', 'Purchase Request and Products successfully submitted!');
-    } catch (\Exception $e) {
-        DB::rollBack();
-        return back()->with('error', 'Error submitting PR. Check the logs.');
-    }
-}
+    return redirect()
+        ->route('requester.manage_requests')
+        ->with('success', 'Purchase Request successfully submitted!')
+        ->with('highlightPrId', "This is typeshii");
 
 
-
-
-
-    public function manage_requests(Request $request)
+    
+}    
+public function manage_requests(Request $request)
 {
     $userId = Auth::id();
     $search = $request->input('search');
 
     $query = PurchaseRequest::with('details.product.unit')
-        ->where('focal_person_user', $userId)
-        ->when($search, function ($query, $search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('pr_number', 'like', "%$search%")
-                  ->orWhere('purpose', 'like', "%$search%");
-            });
-        })
-        ->select('id', 'pr_number', 'purpose', 'status', 'is_sent', 'approval_image', 'created_at');
-    if ($request->month) {
-        $query->whereMonth('created_at', $request->month);
-    }
-    $purchaseRequests = $query->paginate(10)->withQueryString();
+    ->where('focal_person_user', $userId)
+    ->when($search, function ($query, $search) {
+        $query->where(function ($q) use ($search) {
+            $q->where('pr_number', 'like', "%$search%")
+              ->orWhere('purpose', 'like', "%$search%");
+        });
+    })
+    ->select('id', 'pr_number', 'purpose', 'status', 'is_sent', 'approval_image', 'created_at')
+    ->orderBy('created_at', 'desc'); // 👈 newest first
+
+if ($request->month) {
+    $query->whereMonth('created_at', $request->month);
+}
+
+$purchaseRequests = $query->paginate(10)->withQueryString();
+
 
     $units = Unit::select('id', 'unit')->get();
 
@@ -260,39 +276,36 @@ public function store(PurchaseRequestRequest $request)
         ->get();
 
     return Inertia::render('Requester/ManageRequests', [
-        'purchaseRequests' => $purchaseRequests->through(function ($pr) {
-            return [
-                'id' => $pr->id,
-                'pr_number' => $pr->pr_number,
-                'purpose' => $pr->purpose,
-                'status' => $pr->status,
-                'is_sent' => $pr->is_sent,
-                'approval_image' => $pr->approval_image,
-                'created_at' => $pr->created_at,
-                'details' => $pr->details->map(function ($detail) {
-                    return [
-                        'id' => $detail->id,
-                        'item' => $detail->product->name ?? '',
-                        'specs' => $detail->product->specs ?? '',
-                        'unit' => $detail->product->unit->unit ?? '',
-                        'quantity' => $detail->quantity,
-                        'unit_price' => $detail->unit_price,
-                        'total_price' => $detail->quantity * $detail->unit_price,
-                    ];
-                }),
-            ];
-        }),
-        'units' => $units,
-        'products' => $products,
-        'search' => $search,
-        'month' => $request->month,
-    ]);
+    'purchaseRequests' => $purchaseRequests->through(function ($pr) {
+        return [
+            'id' => $pr->id,
+            'pr_number' => $pr->pr_number,
+            'purpose' => $pr->purpose,
+            'status' => $pr->status,
+            'is_sent' => $pr->is_sent,
+            'approval_image' => $pr->approval_image,
+            'created_at' => $pr->created_at,
+            'details' => $pr->details->map(function ($detail) {
+                return [
+                    'id' => $detail->id,
+                    'item' => $detail->product->name ?? '',
+                    'specs' => $detail->product->specs ?? '',
+                    'unit' => $detail->product->unit->unit ?? '',
+                    'quantity' => $detail->quantity,
+                    'unit_price' => $detail->unit_price,
+                    'total_price' => $detail->quantity * $detail->unit_price,
+                ];
+            }),
+        ];
+    }),
+    'units' => $units,
+    'products' => $products,
+    'search' => $search,
+    'month' => $request->month,
+    'highlightPrId' => session('highlightPrId'),
+]);
+
 }
-
-
-
-
-
     public function store_details(Request $request, $pr_id)
     {
         $validated = $request->validate([
@@ -382,7 +395,7 @@ $purchaseRequest = PurchaseRequest::with(['details.product.unit'])->findOrFail($
         'focal_person' => $purchaseRequest->focal_person,
     ]);
 
-    return $pdf->download("PR-{$purchaseRequest->pr_number}.pdf");
+    return $pdf->stream("PR-{$purchaseRequest->pr_number}.pdf");
     }
 
     public function sendForApproval(Request $request, $id)

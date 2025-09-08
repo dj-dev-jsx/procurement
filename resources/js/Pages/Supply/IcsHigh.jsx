@@ -1,7 +1,7 @@
 import IssuanceTabs from '@/Layouts/IssuanceTabs';
 import SupplyOfficerLayout from '@/Layouts/SupplyOfficerLayout';
 import { TrashIcon } from "@heroicons/react/16/solid";
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import { PenBoxIcon, PrinterCheckIcon } from 'lucide-react';
 import { useEffect } from 'react'; // Only need useEffect
 
@@ -23,7 +23,6 @@ export default function IcsHigh({ icsRecords, user, filters }) {
     month: filters?.month ?? "",
     year: filters?.year ?? new Date().getFullYear(),
   });
-
 
 
 useEffect(() => {
@@ -115,53 +114,65 @@ useEffect(() => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {icsRecords.length > 0 ? (
-                // The map now uses the `icsRecords` prop directly.
-                icsRecords.map((ics, index) => {
-                  const division = getSafe(() => ics.po.rfq.purchase_request.division.division);
-                  const receivedBy = getSafe(() => `${ics.received_by.firstname} ${ics.received_by.lastname}`);
-                  const itemDesc = getSafe(() => ics.inventory_item.item_desc);
-                  const unitCost = parseFloat(ics.unit_cost || 0);
-                  const totalCost = parseFloat(ics.total_cost || 0);
-                  const dateReceived = new Date(ics.created_at).toLocaleDateString('en-PH', {
-                      year: 'numeric', month: 'long', day: 'numeric',
-                  });
+              {icsRecords?.data?.length > 0 ? (
+                icsRecords.data.map((record, index) => {
+                  const dateReceived = record?.created_at
+                    ? new Date(record.created_at).toLocaleDateString("en-PH", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })
+                    : "—";
+                    console.log(record);
 
                   return (
-                    <tr key={ics.id} className="hover:bg-gray-50">
+                    <tr key={record.id}>
                       <td className="px-4 py-2">{index + 1}</td>
-                      <td className="px-4 py-2 font-semibold text-gray-900">{ics.ics_number}</td>
-                      <td className="px-4 py-2">{division}</td>
-                      <td className="px-4 py-2">{receivedBy}</td>
-                      <td className="px-4 py-2">{itemDesc}</td>
-                      <td className="px-4 py-2 text-center font-medium">{ics.quantity}</td>
-                      <td className="px-4 py-2 text-right">₱{unitCost.toFixed(2)}</td>
-                      <td className="px-4 py-2 text-right font-semibold">₱{totalCost.toFixed(2)}</td>
+                      <td className="px-4 py-2">{record.ics_number}</td>
+                      <td className="px-4 py-2">{record.po?.rfq?.purchase_request?.division?.division ?? "N/A"}</td>
+                      <td className="px-4 py-2">
+                        {record.received_by?.firstname} {record.received_by?.lastname}
+                      </td>
+                      <td className="px-4 py-2">{record.inventory_item?.item_desc}</td>
+                      <td className="px-4 py-2">{record.quantity}</td>
+                      <td className="px-4 py-2">₱{Number(record.inventory_item?.unit_cost ?? 0).toFixed(2)}</td>
+                      <td className="px-4 py-2">₱{(Number(record.inventory_item?.unit_cost ?? 0) * record.quantity).toFixed(2)}</td>
                       <td className="px-4 py-2">{dateReceived}</td>
-                      <td className="flex justify-center items-center px-4 py-2 space-x-2">
-                          <button className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
-                              <PenBoxIcon className='h-4 w-4' /> Edit
-                          </button>
-                          <button className="flex items-center gap-2 px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 transition">
-                              <PrinterCheckIcon className='h-4 w-4'/> Print
-                          </button>
-                          <button className="flex items-center gap-2 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition">
-                              <TrashIcon className='h-4 w-4'/> Delete
-                          </button>
+                      <td className="px-4 py-2 text-center space-x-2">
+                        <button className="text-blue-600 hover:underline">Edit</button>
+                        <button className="text-green-600 hover:underline">Copy</button>
+                        <button className="text-red-600 hover:underline">Delete</button>
                       </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan="10" className="text-center py-8 text-gray-500">
-                    No high-value ICS records found for the selected filters.
-                  </td>
+                  <td colSpan="10" className="text-center">No RIS records found</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+        {icsRecords?.links?.length > 3 && (
+          <nav className="mt-4 flex justify-center items-center space-x-2">
+            {icsRecords.links.map((link, index) => (
+              <Link
+                key={index}
+                href={link.url || '#'} // Use '#' for disabled links
+                className={`
+                  px-3 py-1 text-sm rounded-md
+                  ${link.active
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }
+                  ${!link.url && 'opacity-50 cursor-not-allowed'}
+                `}
+                dangerouslySetInnerHTML={{ __html: link.label }} // Render HTML entities like &laquo;
+              />
+            ))}
+          </nav>
+        )}
       </div>
     </SupplyOfficerLayout>
   );

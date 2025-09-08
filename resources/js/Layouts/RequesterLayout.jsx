@@ -13,51 +13,8 @@ import NavLink from '@/Components/NavLink';
 import Dropdown from '@/Components/Dropdown';
 import logo from '../src/deped1.png';
 import usePolling from "@/hooks/usePolling";
+import { Toaster } from "@/components/ui/toaster";
 
-// function PurchaseRequestsDropdown({ isSidebarCollapsed }) {
-//   const [isOpen, setIsOpen] = useState(false);
-
-//   return (
-//     <div className="w-full">
-//       <button
-//         onClick={() => setIsOpen(!isOpen)}
-//         aria-expanded={isOpen}
-//         className="flex items-center justify-between w-full px-2 py-2 hover:bg-indigo-600 hover:text-white rounded-lg transition-all duration-200"
-//       >
-//         <div className="flex items-center gap-2 w-full">
-//           <ClipboardDocumentIcon className="w-5 h-5 text-gray-300" />
-//           {!isSidebarCollapsed && <span className="text-gray-200 font-medium">Purchase Requests</span>}
-//         </div>
-//         {!isSidebarCollapsed && (
-//           <ChevronDownIcon
-//             className={`w-5 h-5 text-gray-300 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-//           />
-//         )}
-//       </button>
-
-//       {isOpen && (
-//         <nav className="mt-2 pl-10 space-y-1">
-//           {[
-//             { label: 'Create PR', routeName: 'requester.create' },
-//             { label: 'Manage Requests', routeName: 'requester.manage_requests' },
-//             { label: 'For Review' },
-//             { label: 'Approved' },
-//             { label: 'Disapproved' },
-//           ].map((item) => (
-//             <NavLink
-//               key={item.label}
-//               href={item.routeName ? route(item.routeName) : '#'}
-//               active={item.routeName ? route().current(item.routeName) : false}
-//               className="block text-sm text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-1 rounded-md"
-//             >
-//               {item.label}
-//             </NavLink>
-//           ))}
-//         </nav>
-//       )}
-//     </div>
-//   );
-// }
 
 export default function RequesterLayout({ header, children }) {
   const { user } = usePage().props.auth;
@@ -397,6 +354,7 @@ useEffect(() => {
         </header>
 
         <main className="p-6 flex-1 overflow-y-auto bg-gray-300">{children}</main>
+        <Toaster/>
       </div>
     </div>
     {showReasonModal && (

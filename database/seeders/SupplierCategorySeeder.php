@@ -5,14 +5,14 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
-class UnitSeeder extends Seeder
+class SupplierCategorySeeder extends Seeder
 {
     public function run(): void
     {
-        $units = ['pcs', 'box', 'set', 'kg', 'liter'];
-        foreach ($units as $unit) {
-            DB::table('tbl_units')->insert([
-                'unit' => $unit,
+        $categories = ['Local', 'International', 'Wholesale', 'Retail'];
+        foreach ($categories as $cat) {
+            DB::table('tbl_supplier_categories')->insert([
+                'name' => $cat,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);

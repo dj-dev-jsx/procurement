@@ -20,13 +20,14 @@ export default function PurchaseOrdersTable({ purchaseOrders, filters }) {
   });
   const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-useEffect(() => {
-    const message = props.flash.success;
-    if (message) {
-      setSuccessMessage(message);
-      setIsSuccessDialogOpen(true);
-    }
-  }, [props.flash.success]); 
+  useEffect(() => {
+      const message = props.flash.success;
+      if (message) {
+        setSuccessMessage(message);
+        setIsSuccessDialogOpen(true);
+      }
+    }, [props.flash.success]); 
+    console.log(props.flash.success);
 
   // Debounced filter handling
   useEffect(() => {

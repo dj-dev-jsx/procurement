@@ -3,10 +3,151 @@ import RequesterLayout from "@/Layouts/RequesterLayout";
 import { Head, useForm, usePage } from "@inertiajs/react";
 import { User, FileText, ClipboardList, Building2, UserPlus, SendHorizonalIcon } from "lucide-react";
 import Swal from 'sweetalert2';
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { router } from "@inertiajs/react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
-function ProductTable({ products, handleProductSelect }) {
+
+function CreateProductModal({ open, onClose, units, categories, onProductSaved }) {
+  const { data, setData, post, processing, errors, reset } = useForm({
+    name: "",
+    specs: "",
+    unit_id: "",
+    category_id: "",
+    default_price: "",
+  });
+
+  // Reset form whenever modal closes
+  useEffect(() => {
+    if (!open) reset();
+  }, [open]);
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    post(route("requester.store_product"), {
+      preserveScroll: true,
+      onSuccess: (page) => {
+        const newProduct = page.props.flash?.newProduct; 
+        if (newProduct) {
+          onProductSaved(newProduct); // 👈 send back to Create
+        }
+        onClose();
+      },
+      onError: () => {
+        console.error("Error saving product");
+      },
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Add New Product</DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleSave} className="space-y-4">
+          {/* Name */}
+          <div>
+            <label className="text-sm font-medium">Item Name</label>
+            <input
+              type="text"
+              value={data.name}
+              onChange={(e) => setData("name", e.target.value)}
+              className="w-full border rounded px-3 py-2"
+            />
+            {errors.name && <p className="text-red-600 text-sm">{errors.name}</p>}
+          </div>
+
+          {/* Specs */}
+          <div>
+            <label className="text-sm font-medium">Specifications</label>
+            <textarea
+              value={data.specs}
+              onChange={(e) => setData("specs", e.target.value)}
+              className="w-full border rounded px-3 py-2"
+              rows={3}
+            />
+            {errors.specs && <p className="text-red-600 text-sm">{errors.specs}</p>}
+          </div>
+
+          {/* Unit */}
+          <div>
+            <label className="text-sm font-medium">Unit</label>
+            <select
+              value={data.unit_id}
+              onChange={(e) => setData("unit_id", e.target.value)}
+              className="w-full border rounded px-3 py-2"
+            >
+              <option value="">-- Select Unit --</option>
+              {units.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.unit}
+                </option>
+              ))}
+            </select>
+            {errors.unit_id && <p className="text-red-600 text-sm">{errors.unit_id}</p>}
+          </div>
+
+          {/* Category */}
+          <div>
+            <label className="text-sm font-medium">Category</label>
+            <select
+              value={data.category_id}
+              onChange={(e) => setData("category_id", e.target.value)}
+              className="w-full border rounded px-3 py-2"
+            >
+              <option value="">-- Select Category --</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {errors.category_id && <p className="text-red-600 text-sm">{errors.category_id}</p>}
+          </div>
+
+          {/* Price */}
+          <div>
+            <label className="text-sm font-medium">Default Price (₱)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={data.default_price}
+              onChange={(e) => setData("default_price", e.target.value)}
+              className="w-full border rounded px-3 py-2"
+            />
+            {errors.default_price && <p className="text-red-600 text-sm">{errors.default_price}</p>}
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
+            </Button>
+            <Button
+            type="button"
+            onClick={handleSave}
+            disabled={processing}
+            >
+            {processing ? "Saving..." : "Save Product"}
+            </Button>
+
+            </DialogFooter>
+
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+function ProductTable({ products, handleProductSelect, setOpenProductModal  }) {
     const [search, setSearch] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const [editedPrices, setEditedPrices] = useState({}); // track changes
@@ -47,8 +188,6 @@ function ProductTable({ products, handleProductSelect }) {
                 preserveState: true,
                 preserveScroll: true,
                 onSuccess: () => {
-                    console.log("Price updated successfully!");
-                    // clear the saved change so button disappears
                     setEditedPrices((prev) => {
                         const updated = { ...prev };
                         delete updated[id];
@@ -67,12 +206,14 @@ function ProductTable({ products, handleProductSelect }) {
             {/* Header + Add Button */}
             <div className="flex items-center justify-between mb-3">
                 <h4 className="text-xl font-semibold text-gray-800">Available Products</h4>
-                <NavLink
-                    href={route("requester.create_product")}
-                    className="text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition duration-200"
+                <button
+                    type="button"
+                    onClick={() => setOpenProductModal(true)}
+                    className="text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition"
                 >
                     Add New Product
-                </NavLink>
+                </button>
+
             </div>
 
             {/* Search */}
@@ -156,6 +297,7 @@ function ProductTable({ products, handleProductSelect }) {
             {totalPages > 1 && (
                 <div className="flex justify-center items-center gap-4 mt-4">
                     <button
+                        type="button"   // 👈 prevent form submission
                         onClick={handlePrev}
                         disabled={currentPage === 1}
                         className={`px-3 py-1 rounded-md ${
@@ -170,6 +312,7 @@ function ProductTable({ products, handleProductSelect }) {
                         Page {currentPage} of {totalPages}
                     </span>
                     <button
+                        type="button"   // 👈 prevent form submission
                         onClick={handleNext}
                         disabled={currentPage === totalPages}
                         className={`px-3 py-1 rounded-md ${
@@ -182,6 +325,7 @@ function ProductTable({ products, handleProductSelect }) {
                     </button>
                 </div>
             )}
+
         </div>
     );
 }
@@ -217,12 +361,14 @@ function ProductModal({ isOpen, onClose, onConfirm, product }) {
 
                 <div className="mt-6 flex justify-end gap-3">
                     <button
+                    type="button"
                         onClick={onClose}
                         className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded"
                     >
                         Cancel
                     </button>
                     <button
+                    type="button"
                         onClick={() => {
                             if (quantity > 0) {
                                 onConfirm(quantity);
@@ -239,17 +385,34 @@ function ProductModal({ isOpen, onClose, onConfirm, product }) {
     );
 }
 
-export default function Create({ requestedBy, products }) {
+export default function Create({ requestedBy, products, units, categories }) {
     const user = usePage().props.auth.user;
     const fullName = `${user.firstname} ${user.middlename ?? ''} ${user.lastname}`.trim();
     const prNumberFromServer = usePage().props.pr_number;
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState(null);
+    const { pr_number, latestPr } = usePage().props;
+    const [currentPr, setCurrentPr] = useState(pr_number);
+    console.log(pr_number);
+    console.log(currentPr);
+    console.log(prNumberFromServer);
+    const [openProductModal, setOpenProductModal] = useState(false);
+
+    useEffect(() => {
+        setData("pr_number", currentPr);
+    }, [currentPr]);
+    const [showSavedDialog, setShowSavedDialog] = useState(false);
+    const [pendingProduct, setPendingProduct] = useState(null);
+
+    const handleProductSaved = (newProduct) => {
+    setPendingProduct(newProduct);
+    setShowSavedDialog(true);
+    };
 
 
     const { data, setData, post, processing, errors } = useForm({
         focal_person: user.id,
-        pr_number: prNumberFromServer || '',
+        pr_number: currentPr || '',
         purpose: '',
         division_id: user.division.id,
         requested_by: requestedBy.name || "",
@@ -258,32 +421,24 @@ export default function Create({ requestedBy, products }) {
 
 
 
+const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+const [showResultDialog, setShowResultDialog] = useState(false);
+const [resultMessage, setResultMessage] = useState({ title: "", text: "", success: true });
 const handleSubmit = (e) => {
-    e.preventDefault();
-    console.log("Form data before submit:", data);
+  e.preventDefault();
+  console.log("Form data before submit:", data);
 
-    Swal.fire({
-        title: 'Are you sure?',
-        text: "Do you want to proceed with creating this Purchase Request?",
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#2563EB',
-        cancelButtonColor: '#d33',
-        confirmButtonText: 'Confirm',
-    }).then((result) => {
-        if (result.isConfirmed) {
-            post(route('requester.store'), data, {
-                preserveScroll: true,
-                onSuccess: () => {
-                    Swal.fire('Success!', 'PR submitted.', 'success');
-                },
-                onError: () => {
-                    Swal.fire('Error', 'Something went wrong.', 'error');
-                },
-            });
-        }
+  setShowConfirmDialog(true);
+};
+
+const handleConfirmSubmit = () => {
+    post(route("requester.store"), {
+        onFinish: () => {
+            setShowConfirmDialog(false);
+        },
     });
 };
+
 const handleProductSelect = (productId) => {
     const selected = products.find(p => p.id === productId);
     if (selected) {
@@ -291,24 +446,60 @@ const handleProductSelect = (productId) => {
         setModalOpen(true);
     }
 };
+const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+const [pendingQuantity, setPendingQuantity] = useState(null);
+const [duplicateIndex, setDuplicateIndex] = useState(null);
 const handleConfirmProduct = (quantity) => {
-    const newProduct = {
-        product_id: selectedProduct.id,
-        item: selectedProduct.name,
-        specs: selectedProduct.specs,
-        unit: selectedProduct.unit.unit,
-        unit_price: Number(selectedProduct.default_price),
-        total_item_price: Number(selectedProduct.default_price * quantity), // 👈 cast to number
-        quantity: Number(quantity), // 👈 cast to number
-        };
-    console.log(newProduct);
+  const existingIndex = data.products.findIndex(
+    (p) => p.product_id === selectedProduct.id
+  );
 
+  if (existingIndex !== -1) {
+    setPendingQuantity(Number(quantity));
+    setDuplicateIndex(existingIndex);
+    setShowDuplicateDialog(true);
+  } else {
+    // brand new product
+    const newProduct = {
+      product_id: selectedProduct.id,
+      item: selectedProduct.name,
+      specs: selectedProduct.specs,
+      unit: selectedProduct.unit.unit,
+      unit_price: Number(selectedProduct.default_price),
+      total_item_price: Number(selectedProduct.default_price * quantity),
+      quantity: Number(quantity),
+    };
 
     setData("products", [...data.products, newProduct]);
-
     setModalOpen(false);
     setSelectedProduct(null);
+  }
 };
+
+
+useEffect(() => {
+    let intervalId = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        router.reload({
+          only: ["latestPr"],
+          preserveScroll: true,
+          preserveState: true,
+          onSuccess: (page) => {
+            const lastPr = page.props.latestPr;
+            if (lastPr) {
+              const base = lastPr.slice(0, -3); // prefix (YY-MM-)
+              const num = parseInt(lastPr.slice(-3)) + 1;
+              const nextPr = base + num.toString().padStart(3, "0");
+              setCurrentPr(nextPr);
+            }
+          },
+        });
+      }
+    }, 5000); // every 5s
+
+    return () => clearInterval(intervalId);
+  }, []);
+
 
 
 
@@ -427,8 +618,19 @@ const handleConfirmProduct = (quantity) => {
                         product={selectedProduct}
                     />
 
-                    <ProductTable products={products} handleProductSelect={handleProductSelect} />
+                    <CreateProductModal
+                        open={openProductModal}
+                        onClose={() => setOpenProductModal(false)}
+                        units={units}
+                        categories={categories}
+                        onProductSaved={handleProductSaved}
+                    />
 
+                    <ProductTable
+                        products={products}
+                        handleProductSelect={handleProductSelect}
+                        setOpenProductModal={setOpenProductModal}
+                    />
 
                     <div className="flex flex-col">
                         <label htmlFor="division" className="text-sm font-medium text-gray-700 mb-2">
@@ -467,14 +669,14 @@ const handleConfirmProduct = (quantity) => {
                     </div>
 
                     <div className="md:col-span-2 flex justify-end mt-4 gap-5">
-                        <button
+                        <Button
                             type="button"
                             onClick={() => window.history.back()}
                             className="bg-red-600 hover:bg-red-400 text-white font-medium px-6 py-3 rounded-lg text-base transition-all duration-200"
                         >
                             Cancel
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             type="submit"
                             disabled={processing}
                             className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-8 py-3 rounded-lg text-base transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
@@ -493,10 +695,152 @@ const handleConfirmProduct = (quantity) => {
                                     <SendHorizonalIcon className="h-5 w-5" />
                                 </>
                             )}
-                        </button>
+                        </Button>
                     </div>
                 </form>
             </div>
+            <Dialog open={showSavedDialog} onOpenChange={setShowSavedDialog}>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                <DialogTitle className="text-green-600">Product saved!</DialogTitle>
+                </DialogHeader>
+                <p className="text-sm text-gray-600 mt-2">
+                Do you want to add this product to your PR?
+                </p>
+                <DialogFooter className="mt-4 flex justify-end gap-3">
+                <Button
+                    variant="outline"
+                    onClick={() => {
+                    setShowSavedDialog(false);
+                    router.reload({ only: ["products"] }); // just saved to catalog
+                    }}
+                >
+                    No, just save
+                </Button>
+                <Button
+                    onClick={() => {
+                    setShowSavedDialog(false);
+                    setSelectedProduct(pendingProduct);
+                    setModalOpen(true); // open product quantity modal
+                    }}
+                >
+                    Yes, add it
+                </Button>
+                </DialogFooter>
+            </DialogContent>
+            </Dialog>
+
+            <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                <DialogTitle>Are you sure?</DialogTitle>
+                </DialogHeader>
+                <p className="text-sm text-gray-600 mt-2">
+                Do you want to proceed with creating this Purchase Request?
+                </p>
+                <DialogFooter className="mt-4 flex justify-end gap-3">
+                <Button
+                    variant="outline"
+                    onClick={() => setShowConfirmDialog(false)}
+                >
+                    Cancel
+                </Button>
+                <Button
+                    onClick={handleConfirmSubmit}
+                    disabled={processing}
+                    className="bg-green-600 hover:bg-green-700"
+                >
+                    {processing ? "Submitting..." : "Confirm"}
+                </Button>
+                </DialogFooter>
+            </DialogContent>
+            </Dialog>
+
+            <Dialog open={showResultDialog} onOpenChange={setShowResultDialog}>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                <DialogTitle
+                    className={resultMessage.success ? "text-green-600" : "text-red-600"}
+                >
+                    {resultMessage.title}
+                </DialogTitle>
+                </DialogHeader>
+                <p className="text-sm text-gray-600 mt-2">{resultMessage.text}</p>
+                <DialogFooter className="mt-4 flex justify-end">
+                <Button onClick={() => setShowResultDialog(false)}>OK</Button>
+                </DialogFooter>
+            </DialogContent>
+            </Dialog>
+
+            <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+            <DialogContent className="max-w-lg">
+                <DialogHeader>
+                <DialogTitle className="text-yellow-600">
+                    Product already added
+                </DialogTitle>
+                </DialogHeader>
+                <p className="text-sm text-gray-600 mt-2">
+                This product is already in your PR. What would you like to do?
+                </p>
+                <DialogFooter className="mt-4 flex justify-end gap-3">
+                <Button
+                    variant="outline"
+                    onClick={() => {
+                    setShowDuplicateDialog(false);
+                    setPendingQuantity(null);
+                    setDuplicateIndex(null);
+                    }}
+                >
+                    ❌ Cancel
+                </Button>
+                <Button
+  onClick={() => {
+    const updatedProducts = [...data.products];
+    updatedProducts[duplicateIndex].quantity += pendingQuantity;
+    updatedProducts[duplicateIndex].total_item_price =
+      updatedProducts[duplicateIndex].quantity *
+      updatedProducts[duplicateIndex].unit_price;
+
+    setData("products", updatedProducts);
+
+    // close both dialogs
+    setShowDuplicateDialog(false);
+    setPendingQuantity(null);
+    setDuplicateIndex(null);
+    setModalOpen(false);        // 👈 close ProductModal
+    setSelectedProduct(null);   // 👈 clear product
+  }}
+>
+  ➕ Increase Quantity
+</Button>
+
+<Button
+  onClick={() => {
+    const updatedProducts = [...data.products];
+    updatedProducts[duplicateIndex].quantity = pendingQuantity;
+    updatedProducts[duplicateIndex].total_item_price =
+      updatedProducts[duplicateIndex].quantity *
+      updatedProducts[duplicateIndex].unit_price;
+
+    setData("products", updatedProducts);
+
+    // close both dialogs
+    setShowDuplicateDialog(false);
+    setPendingQuantity(null);
+    setDuplicateIndex(null);
+    setModalOpen(false);        // 👈 close ProductModal
+    setSelectedProduct(null);   // 👈 clear product
+  }}
+>
+  🔄 Replace Quantity
+</Button>
+
+                </DialogFooter>
+
+            </DialogContent>
+            </Dialog>
+
+
         </RequesterLayout>
     );
 }

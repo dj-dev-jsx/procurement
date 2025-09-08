@@ -139,9 +139,17 @@ const confirmSubmit = (e, detailId, supplierId, currentQuotedPrice) => {
 
   // Handle price input change
 const handlePriceChange = (value, detailId, supplierId) => {
+  const unitPrice = pr.details.find(d => d.id === detailId)?.unit_price || 0;
+  let numericValue = parseFloat(value);
+
+  if (numericValue > unitPrice) {
+    numericValue = unitPrice; // clamp to maximum allowed
+  }
+
   const key = `${detailId}-${supplierId}`;
-  setQuotedPrices(prev => ({ ...prev, [key]: value }));
+  setQuotedPrices(prev => ({ ...prev, [key]: numericValue }));
 };
+
 
 
   // Submit single quoted price
@@ -495,33 +503,49 @@ const [skippedItems, setSkippedItems] = useState([]);
 
                 <div className="space-y-6 mt-6">
                   {Array.isArray(selectedSuppliersByItem[detail.id]) &&
-                    selectedSuppliersByItem[detail.id].map(supplierId => {
-                      const supplier = supplierList.find(s => s.id === supplierId);
+                    selectedSuppliersByItem[detail.id].map((supplierId) => {
+                      const supplier = supplierList.find((s) => s.id === supplierId);
                       if (!supplier) return null;
 
                       const uniqueId = `${detail.id}-${supplierId}`;
                       const isSubmitting = submittingId === uniqueId;
                       const quoted = getQuotedPrice(detail.id, supplierId);
                       const alreadySubmitted = quoted !== null;
+                      const unitPrice = detail.unit_price || 0; // ✅ max allowed price
+
+                      // Updated handle input change
+                      const handleInputChange = (e) => {
+                        let value = parseFloat(e.target.value);
+                        if (isNaN(value)) value = "";
+
+                        if (value > unitPrice) {
+                          value = unitPrice; // clamp to max
+                          Swal.fire({
+                            icon: "warning",
+                            title: "Exceeded Unit Price",
+                            text: `Quoted price cannot exceed ₱${unitPrice.toLocaleString()}.`,
+                            timer: 2000,
+                            showConfirmButton: false,
+                          });
+                        }
+
+                        setQuotedPrices((prev) => ({ ...prev, [uniqueId]: value }));
+                      };
 
                       return (
                         <form
                           key={uniqueId}
                           onSubmit={(e) => {
-                              e.preventDefault();
-                              const uniqueId = `${detail.id}-${supplierId}`;
-                              const latestValue = quotedPrices[uniqueId] ?? "";
-                              const isEditing = !!editingQuotes[uniqueId];
+                            e.preventDefault();
+                            const latestValue = quotedPrices[uniqueId] ?? "";
+                            const isEditing = !!editingQuotes[uniqueId];
 
-                              if (alreadySubmitted && isEditing) {
-                                // ✅ Save immediately, no confirmation dialog
-                                handleSubmit(detail.id, supplierId, latestValue, uniqueId);
-                              } else {
-                                // First-time submit still asks for confirmation
-                                confirmSubmit(e, detail.id, supplierId, latestValue);
-                              }
-                            }}
-
+                            if (alreadySubmitted && isEditing) {
+                              handleSubmit(detail.id, supplierId, latestValue, uniqueId);
+                            } else {
+                              confirmSubmit(e, detail.id, supplierId, latestValue);
+                            }
+                          }}
                           className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center mt-4"
                         >
                           <div className="md:col-span-4">
@@ -533,43 +557,39 @@ const [skippedItems, setSkippedItems] = useState([]);
                               type="number"
                               step="0.01"
                               placeholder="₱ Quoted Price"
-                              disabled={alreadySubmitted && !editingQuotes[uniqueId]}  // ✅ only lock when not editing
+                              max={unitPrice} // browser hint
+                              disabled={alreadySubmitted && !editingQuotes[uniqueId]}
                               value={
                                 alreadySubmitted && !editingQuotes[uniqueId]
                                   ? parseFloat(quoted).toFixed(2)
                                   : quotedPrices[uniqueId] || ""
                               }
-                              onChange={(e) => handlePriceChange(e.target.value, detail.id, supplierId)}
+                              onChange={handleInputChange}
                               className={`w-full border rounded-md px-4 py-2 text-sm shadow-sm ${
                                 alreadySubmitted && !editingQuotes[uniqueId]
                                   ? "bg-gray-100 border-gray-300 text-gray-500"
                                   : "border-gray-300 focus:ring-2 focus:ring-indigo-500"
                               }`}
                             />
-
                             {alreadySubmitted && !editingQuotes[uniqueId] && (
                               <span className="absolute top-1/2 right-3 -translate-y-1/2 text-xs font-medium text-green-600">
                                 Already submitted
                               </span>
                             )}
-
                           </div>
                           <div className="md:col-span-3 flex gap-2">
                             {alreadySubmitted && !editingQuotes[uniqueId] ? (
                               <>
-                                {/* EDIT BUTTON */}
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setEditingQuotes((prev) => ({ ...prev, [uniqueId]: true }));
-                                    setQuotedPrices((prev) => ({ ...prev, [uniqueId]: quoted })); // preload current value
+                                    setQuotedPrices((prev) => ({ ...prev, [uniqueId]: quoted })); // preload
                                   }}
                                   className="w-14 flex justify-center items-center gap-2 py-2 px-4 font-medium text-sm rounded-md bg-yellow-500 hover:bg-yellow-600 text-white"
                                 >
                                   <PencilSquareIcon className="w-4 h-4" />
                                 </button>
-
-                                {/* DELETE BUTTON */}
                                 <button
                                   type="button"
                                   disabled={isSubmitting}
@@ -587,44 +607,32 @@ const [skippedItems, setSkippedItems] = useState([]);
                                 </button>
                               </>
                             ) : alreadySubmitted ? (
-                              // SAVE BUTTON (edit mode)
                               <button
                                 type="button"
                                 disabled={isSubmitting}
-                                onClick={() => {
-                                  const latestValue = quotedPrices[uniqueId] ?? "";
-                                  handleSubmit(detail.id, supplierId, latestValue, uniqueId);
-                                }}
+                                onClick={() => handleSubmit(detail.id, supplierId, quotedPrices[uniqueId] ?? "", uniqueId)}
                                 className={`w-14 flex justify-center items-center gap-2 py-2 px-4 font-medium text-sm rounded-md ${
-                                  isSubmitting
-                                    ? "bg-gray-400 cursor-wait"
-                                    : "bg-green-600 hover:bg-green-700 text-white"
+                                  isSubmitting ? "bg-gray-400 cursor-wait" : "bg-green-600 hover:bg-green-700 text-white"
                                 }`}
                               >
                                 <Save className="w-4 h-4" />
                               </button>
                             ) : (
-                              // FIRST SUBMIT BUTTON
                               <button
                                 type="submit"
                                 disabled={isSubmitting}
                                 className={`w-14 flex justify-center items-center gap-2 py-2 px-4 font-medium text-sm rounded-md ${
-                                  isSubmitting
-                                    ? "bg-gray-400 cursor-wait"
-                                    : "bg-green-600 hover:bg-green-700 text-white"
+                                  isSubmitting ? "bg-gray-400 cursor-wait" : "bg-green-600 hover:bg-green-700 text-white"
                                 }`}
                               >
                                 <CheckCircle2 className="w-4 h-4" />
                               </button>
                             )}
                           </div>
-
-
-
-
                         </form>
                       );
                     })}
+
                 </div>
               </div>
             ))}
@@ -650,7 +658,7 @@ const [skippedItems, setSkippedItems] = useState([]);
       {/* Supplier Selection Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="relative w-full max-w-6xl p-6 bg-white/90 backdrop-blur-lg rounded-2xl shadow-2xl border border-gray-200">
+          <div className="relative w-full max-w-7xl p-6 bg-white/90 backdrop-blur-lg rounded-2xl shadow-2xl border border-gray-200">
             {/* Close button */}
             <button
               onClick={() => setShowModal(false)}

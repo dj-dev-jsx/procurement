@@ -134,6 +134,7 @@ public function purchase_requests(Request $request)
     {
         $sentPRs = PurchaseRequest::with(['details', 'division', 'focal_person'])
                         ->where('is_sent', 1)
+                        ->where('status', 'pending')
                         ->get();
 
         return Inertia::render('BacApprover/ForReview', [
@@ -368,7 +369,7 @@ public function print_rfq_per_item($rfqId, $detailId)
 
     public function for_quotations()
     {
-        $purchaseRequests = PurchaseRequest::with(['details', 'division', 'focal_person'])
+        $purchaseRequests = PurchaseRequest::with(['details', 'division', 'focal_person', 'rfqs'])
             ->where('status', 'Approved')
             ->get();
 

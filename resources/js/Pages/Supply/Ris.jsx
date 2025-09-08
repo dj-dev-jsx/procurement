@@ -1,6 +1,6 @@
 import IssuanceTabs from '@/Layouts/IssuanceTabs';
 import SupplyOfficerLayout from '@/Layouts/SupplyOfficerLayout';
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { useState } from 'react';
 
 export default function Ris({purchaseOrders, inventoryItems, ris, user}) {
@@ -14,14 +14,19 @@ export default function Ris({purchaseOrders, inventoryItems, ris, user}) {
   const [filterYear, setFilterYear] = useState(new Date().getFullYear());
 
 
-  const getInventory = (specs, unitId) => inventoryItems.find(
-    inv =>
-      inv.item_desc === specs && inv.inventory?.unit === unitId
-  )?.inventory;
+// Pre-index inventory by (specs+unit)
+const inventoryMap = new Map(
+  inventoryItems.map(inv => [`${inv.item_desc}_${inv.inventory?.unit}`, inv.inventory])
+);
 
-  const getRisRecords = (poId, inventoryID) => ris.find(
-    r => r.po_id === poId && r.inventory_item_id === inventoryID
-  );
+// Pre-index RIS by (poId + inventoryId)
+const risMap = new Map();
+ris?.data?.forEach(r => {
+  const key = `${r.po_id}_${r.inventory_item_id}`;
+  if (!risMap.has(key)) risMap.set(key, []);
+  risMap.get(key).push(r);
+});
+
   return (
     <SupplyOfficerLayout header="Schools Divisions Office - Ilagan | Requisition and Issue Slip">
       <Head title='RIS' />
@@ -109,36 +114,29 @@ export default function Ris({purchaseOrders, inventoryItems, ris, user}) {
                 <th className="px-4 py-2 text-center">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {purchaseOrders.map((po) =>
-                po.details?.map((detail, index) => {
-                  const product = detail.pr_detail?.product ?? "N/A";
-                  const specs = product?.specs ?? "N/A";
-                  const unit = product?.unit?.id ?? "N/A";
-                  const item = `${product?.name} ${specs}` ?? "N/A";
-                  const focal = `${detail.pr_detail?.purchase_request?.focal_person.firstname} ${detail.pr_detail?.purchase_request?.focal_person.middlename} ${detail.pr_detail?.purchase_request?.focal_person.lastname}` ?? "N/A";
-                  const division = detail.pr_detail?.purchase_request?.division.division ?? "N/A";
-                  const inventoryData = getInventory(specs, unit);
-                  const risData = getRisRecords(po.id, inventoryData?.id);
-                  if (!risData) return null;
-                  const dateReceived = risData?.created_at
-                    ? new Date(risData.created_at).toLocaleDateString('en-PH', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
+            <tbody>
+              {ris?.data?.length > 0 ? (
+                ris.data.map((record, index) => {
+                  const dateReceived = record?.created_at
+                    ? new Date(record.created_at).toLocaleDateString("en-PH", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
                       })
-                    : '—';
+                    : "—";
 
-                  return(
-                    <tr key={`${po.id} - ${index}`}>
-                      <td className="px-4 py-2">{index+1}</td>
-                      <td className="px-4 py-2">{risData?.ris_number}</td>
-                      <td className="px-4 py-2">{division}</td>
-                      <td className="px-4 py-2">{focal}</td>
-                      <td className="px-4 py-2">{item}</td>
-                      <td className="px-4 py-2">{risData?.quantity}</td>
-                      <td className="px-4 py-2">₱{Number(inventoryData?.unit_cost ?? 0).toFixed(2)}</td>
-                      <td className="px-4 py-2">₱{(Number(inventoryData?.unit_cost ?? 0) * detail.quantity).toFixed(2)}</td>
+                  return (
+                    <tr key={record.id}>
+                      <td className="px-4 py-2">{index + 1}</td>
+                      <td className="px-4 py-2">{record.ris_number}</td>
+                      <td className="px-4 py-2">{record.po?.details?.[0]?.pr_detail?.purchase_request?.division?.division ?? "N/A"}</td>
+                      <td className="px-4 py-2">
+                        {record.issued_to?.firstname} {record.issued_to?.lastname}
+                      </td>
+                      <td className="px-4 py-2">{record.inventory_item?.item_desc}</td>
+                      <td className="px-4 py-2">{record.quantity}</td>
+                      <td className="px-4 py-2">₱{Number(record.inventory_item?.unit_cost ?? 0).toFixed(2)}</td>
+                      <td className="px-4 py-2">₱{(Number(record.inventory_item?.unit_cost ?? 0) * record.quantity).toFixed(2)}</td>
                       <td className="px-4 py-2">{dateReceived}</td>
                       <td className="px-4 py-2 text-center space-x-2">
                         <button className="text-blue-600 hover:underline">Edit</button>
@@ -148,10 +146,34 @@ export default function Ris({purchaseOrders, inventoryItems, ris, user}) {
                     </tr>
                   );
                 })
+              ) : (
+                <tr>
+                  <td colSpan="10" className="text-center">No RIS records found</td>
+                </tr>
               )}
             </tbody>
+
           </table>
         </div>
+        {ris?.links?.length > 3 && (
+          <nav className="mt-4 flex justify-center items-center space-x-2">
+            {ris.links.map((link, index) => (
+              <Link    
+                key={index}
+                href={link.url || '#'} // Use '#' for disabled links
+                className={`
+                  px-3 py-1 text-sm rounded-md
+                  ${link.active
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }
+                  ${!link.url && 'opacity-50 cursor-not-allowed'}
+                `}
+                dangerouslySetInnerHTML={{ __html: link.label }} // Render HTML entities like &laquo;
+              />
+            ))}
+          </nav>
+        )}
       </div>
     </SupplyOfficerLayout>
   );

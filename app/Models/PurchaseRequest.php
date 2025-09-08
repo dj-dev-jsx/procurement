@@ -36,6 +36,16 @@ class PurchaseRequest extends Model
     {
         return $this->hasMany(RFQ::class, 'pr_id');
     }
+    // PurchaseRequest.php (model)
+public function getPage($perPage = 10)
+{
+    $position = self::where('focal_person_user', $this->focal_person_user)
+        ->where('created_at', '>=', $this->created_at)
+        ->count();
+
+    return ceil($position / $perPage);
+}
+
 
 
 

@@ -237,6 +237,7 @@ export default function CreatePurchaseOrder({ pr, rfq, suppliers, winners, suppl
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
       <Dialog open={isReasonDialogOpen} onOpenChange={setIsReasonDialogOpen}>
         <DialogContent>
           <DialogHeader>

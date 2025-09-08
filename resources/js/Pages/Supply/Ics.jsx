@@ -1,7 +1,7 @@
 import IssuanceTabs from '@/Layouts/IssuanceTabs';
 import SupplyOfficerLayout from '@/Layouts/SupplyOfficerLayout';
 import { TrashIcon } from '@heroicons/react/16/solid';
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { PenBoxIcon, PrinterCheckIcon } from 'lucide-react';
 import { useState } from 'react';
 
@@ -17,13 +17,13 @@ export default function Ics({purchaseOrders, inventoryItems, ics, user}) {
     const [filterYear, setFilterYear] = useState(new Date().getFullYear());
   
   
-    const getInventory = (specs, unitId) => inventoryItems.find(
+    const getInventory = (specs, unitId) => inventoryItems?.data?.find(
       inv =>
         inv.item_desc === specs && inv.inventory?.unit === unitId
     )?.inventory;
   
   const getIcsRecords = (poId, inventoryID) => 
-    ics.find(i => i.po_id === poId && i.inventory_item_id === inventoryID && i.type === "low");
+    ics?.data?.find(i => i.po_id === poId && i.inventory_item_id === inventoryID && i.type === "low");
 
   return (
     <SupplyOfficerLayout header="Schools Divisions Office - Ilagan | Inventory Custodian Slip (ICS) - LOW">
@@ -105,59 +105,65 @@ export default function Ics({purchaseOrders, inventoryItems, ics, user}) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {purchaseOrders.map((po) =>
-                po.details?.map((detail, index) => {
-                  const product = detail.pr_detail?.product ?? "N/A";
-                  const specs = product?.specs ?? "N/A";
-                  const unit = product?.unit?.id ?? "N/A";
-                  const item = `${product?.name} ${specs}` ?? "N/A";
-                  const focal = `${detail.pr_detail?.purchase_request?.focal_person.firstname} ${detail.pr_detail?.purchase_request?.focal_person.middlename} ${detail.pr_detail?.purchase_request?.focal_person.lastname}` ?? "N/A";
-                  const division = detail.pr_detail?.purchase_request?.division.division ?? "N/A";
-                  const inventoryData = getInventory(specs, unit);
-                  const icsData = getIcsRecords(po.id, inventoryData?.id);
-                  if (!icsData) return null;
-                  const dateReceived = icsData?.created_at
-                    ? new Date(icsData.created_at).toLocaleDateString('en-PH', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
+              {ics?.data?.length > 0 ? (
+                ics.data.map((record, index) => {
+                  const dateReceived = record?.created_at
+                    ? new Date(record.created_at).toLocaleDateString("en-PH", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
                       })
-                    : '—';
+                    : "—";
 
-                  return(
-                    <tr key={`${po.id} - ${index}`}>
-                      <td className="px-4 py-2">{index+1}</td>
-                      <td className="px-4 py-2">{icsData?.ics_number}</td>
-                      <td className="px-4 py-2">{division}</td>
-                      <td className="px-4 py-2">{focal}</td>
-                      <td className="px-4 py-2">{item}</td>
-                      <td className="px-4 py-2">{icsData?.quantity}</td>
-                      <td className="px-4 py-2">₱{Number(inventoryData?.unit_cost ?? 0).toFixed(2)}</td>
-                      <td className="px-4 py-2">₱{(Number(inventoryData?.unit_cost ?? 0) * detail.quantity).toFixed(2)}</td>
+                  return (
+                    <tr key={record.id}>
+                      <td className="px-4 py-2">{index + 1}</td>
+                      <td className="px-4 py-2">{record.ics_number}</td>
+                      <td className="px-4 py-2">{record.po?.details?.[0]?.pr_detail?.purchase_request?.division?.division ?? "N/A"}</td>
+                      <td className="px-4 py-2">
+                        {record.received_by?.firstname} {record.received_by?.lastname}
+                      </td>
+                      <td className="px-4 py-2">{record.inventory_item?.item_desc}</td>
+                      <td className="px-4 py-2">{record.quantity}</td>
+                      <td className="px-4 py-2">₱{Number(record.inventory_item?.unit_cost ?? 0).toFixed(2)}</td>
+                      <td className="px-4 py-2">₱{(Number(record.inventory_item?.unit_cost ?? 0) * record.quantity).toFixed(2)}</td>
                       <td className="px-4 py-2">{dateReceived}</td>
-                        <td className=" flex px-4 py-2 text-center space-x-2">
-                          <button className="flex justify-center items-center gap-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
-                            <PenBoxIcon className='h-4 w-4' />
-                            Edit
-                          </button>
-                          <button className="flex justify-center items-center gap-2 px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 transition">
-                            <PrinterCheckIcon className='h4 w-4'/>
-                            Print
-                          </button>
-                          <button className="flex justify-center items-center gap-2 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition">
-                            <TrashIcon className='h-4 w-4'/>
-                            Delete
-                          </button>
-                        </td>
-
+                      <td className="px-4 py-2 text-center space-x-2">
+                        <button className="text-blue-600 hover:underline">Edit</button>
+                        <button className="text-green-600 hover:underline">Copy</button>
+                        <button className="text-red-600 hover:underline">Delete</button>
+                      </td>
                     </tr>
                   );
                 })
+              ) : (
+                <tr>
+                  <td colSpan="10" className="text-center">No RIS records found</td>
+                </tr>
               )}
               
             </tbody>
           </table>
         </div>
+        {ics?.links?.length > 3 && (
+          <nav className="mt-4 flex justify-center items-center space-x-2">
+            {ics.links.map((link, index) => (
+              <Link
+                key={index}
+                href={link.url || '#'} // Use '#' for disabled links
+                className={`
+                  px-3 py-1 text-sm rounded-md
+                  ${link.active
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }
+                  ${!link.url && 'opacity-50 cursor-not-allowed'}
+                `}
+                dangerouslySetInnerHTML={{ __html: link.label }} // Render HTML entities like &laquo;
+              />
+            ))}
+          </nav>
+        )}
       </div>
       
     </SupplyOfficerLayout>

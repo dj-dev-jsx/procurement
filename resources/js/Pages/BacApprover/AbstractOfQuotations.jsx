@@ -135,6 +135,9 @@ const handleConfirmWinner = () => {
     ...s,
     isWinner: s.supplier.id == fullPrWinnerSupplierId,
   }));
+  const sortedFullBidSuppliers = fullBidSuppliers.sort(
+    (a, b) => a.total - b.total
+  );
 
 
   return (
