@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { XMarkIcon } from "@heroicons/react/24/solid";
 import TooltipLink from "@/Components/Tooltip";
 import Swal from 'sweetalert2';
+import { EyeIcon } from "lucide-react";
 export default function ForReview({ sentPurchaseRequests, filters = {}, flash }) {
   const [selectedImage, setSelectedImage] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -22,6 +23,23 @@ export default function ForReview({ sentPurchaseRequests, filters = {}, flash })
     }, 400);
     return () => clearTimeout(timeout);
   }, [prNumber, focalPerson, division, status]);
+  useEffect(() => {
+    let interval;
+    const startPolling = () => {
+      interval = setInterval(() => {
+        if (document.visibilityState === "visible") {
+          router.reload({
+            only: ["sentPurchaseRequests"],
+            preserveScroll: true,
+            preserveState: true,
+          });
+        }
+      }, 10000);
+    };
+
+    startPolling();
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <ApproverLayout header="Schools Division Office - Ilagan | For Review" flash={flash}>
@@ -140,37 +158,21 @@ export default function ForReview({ sentPurchaseRequests, filters = {}, flash })
                     
 
                       <td className="px-6 py-4 flex space-x-2 justify-center">
-                        <button
-                          onClick={() => {
-                            setSelectedImage(`/storage/${pr.approval_image}`);
-                            setShowModal(true);
-                          }}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm shadow"
-                        >
-                          View Form
-                        </button>
-                        {/* {pr.status.toLowerCase() !== "approved" && (
-                          <button
-                            onClick={async () => {
-                              const result = await Swal.fire({
-                                title: "Are you sure?",
-                                text: "You are about to approve this request.",
-                                icon: "warning",
-                                showCancelButton: true,
-                                confirmButtonColor: "#4f46e5",
-                                cancelButtonColor: "#d33",
-                                confirmButtonText: "Confirm!",
-                              });
-
-                              if (result.isConfirmed) {
-                                router.visit(route("bac_approver.approve", pr.id));
-                              }
+                        <div className="relative group inline-block">
+                            <button
+                            onClick={() => {
+                              setSelectedImage(`/storage/${pr.approval_image}`);
+                              setShowModal(true);
                             }}
-                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm shadow"
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm shadow"
                           >
-                            Approve
+                            <EyeIcon/>
                           </button>
-                        )} */}
+                          <span className="absolute bottom-full mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
+                            View Form
+                          </span>
+                        </div>
+                        
                       </td>
 
                   </tr>

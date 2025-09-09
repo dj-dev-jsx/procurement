@@ -155,7 +155,7 @@ public function purchase_requests(Request $request)
             dd($e->getMessage());
         }
 
-        return to_route('bac_approver.for_review')->with('success', "200");
+        return back()->with('success', 'PR sent back with reason.');
     }
 
     public function show_details($id)
@@ -316,12 +316,14 @@ public function store_supplier(Request $request)
 }
 
 
-public function print_rfq($id)
+public function print_rfq($prId)
 {
-    
-    $rfq = RFQ::with(['purchaseRequest.details.product.unit'])
-        ->findOrFail($id);
-    $details = $rfq->purchaseRequest->details->map(function ($detail) {
+    // Get the PurchaseRequest with its details & related product/unit
+    $pr = PurchaseRequest::with(['details.product.unit'])
+        ->findOrFail($prId);
+
+    // Map the PR details into a format suitable for the PDF
+    $details = $pr->details->map(function ($detail) {
         return [
             'id' => $detail->id,
             'item' => $detail->product->name ?? '',
@@ -333,13 +335,15 @@ public function print_rfq($id)
         ];
     });
 
+    // Generate PDF
     $pdf = PDF::loadView('pdf.rfq', [
-        'rfq' => $rfq,
+        'rfq' => $pr, // pass the PR itself
         'details' => $details,
     ]);
 
-    return $pdf->inline("RFQ-{$rfq->id}.pdf");
+    return $pdf->inline("PR-{$pr->id}-RFQ.pdf");
 }
+
 
 public function print_rfq_per_item($rfqId, $detailId)
 {
@@ -369,9 +373,13 @@ public function print_rfq_per_item($rfqId, $detailId)
 
     public function for_quotations()
     {
-        $purchaseRequests = PurchaseRequest::with(['details', 'division', 'focal_person', 'rfqs'])
-            ->where('status', 'Approved')
-            ->get();
+        $purchaseRequests = PurchaseRequest::with([
+    'details',
+    'division',
+    'focal_person',
+    'rfqs.details'  // <-- load rfq details
+])->where('status', 'Approved')->get();
+
 
         return Inertia::render('BacApprover/Quotations', [
             'purchaseRequests' => $purchaseRequests,

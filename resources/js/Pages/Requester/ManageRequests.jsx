@@ -13,7 +13,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, PrinterIcon, SendHorizontalIcon } from "lucide-react";
 
 export default function ManageRequests({ purchaseRequests, search: initialSearch, month: initialMonth }) {
   const { props } = usePage();
@@ -22,41 +22,59 @@ export default function ManageRequests({ purchaseRequests, search: initialSearch
   const [approvalImages, setApprovalImages] = useState({});
   const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-  useEffect(() => {
-      const message = props.flash.success;
-      if (message) {
-        setSuccessMessage(message);
-        setIsSuccessDialogOpen(true);
-      }
-    }, [props.flash.success]); 
-    console.log(props); 
+  const { toast } = useToast();
+  const [isSendingApproval, setIsSendingApproval] = useState(false);
+
+  const [confirmDialog, setConfirmDialog] = useState({
+    open: false,
+    prId: null,
+    text: "",
+  });
+
+  const [resultDialog, setResultDialog] = useState({
+    open: false,
+    success: true,
+    title: "",
+    text: "",
+  });
+
+
+useEffect(() => {
+  const message = localStorage.getItem("flashSuccess");
+  const highlightId = localStorage.getItem("highlightPrId");
+
+  if (message) {
+    setSuccessMessage(message);
+    setIsSuccessDialogOpen(true);
+    toast({
+        title: "PR Submitted",
+        description: message,
+        duration: 3000,
+      });
+    localStorage.removeItem("flashSuccess");
+  }
+
+  if (highlightId) {
+    setHighlightPrId(Number(highlightId));
+    localStorage.removeItem("highlightPrId");
+  }
+}, []);
+
+
+
     const [highlightPrId, setHighlightPrId] = useState(null);
 
 useEffect(() => {
-  const goToLast = localStorage.getItem("goToLastPage");
   const highlightId = localStorage.getItem("highlightPrId");
 
-  if (goToLast && highlightId) {
-    const lastLink = props.purchaseRequests.links
-      .filter(l => l.url)
-      .slice(-1)[0];
-    console.log("lastLink:", lastLink);
-    if (lastLink && lastLink.url) {
-      router.visit(lastLink.url, {
-        preserveScroll: true,
-        preserveState: true,
-        onSuccess: () => {
-          setHighlightPrId(highlightId);
-          console.log("Set highlightPrId:", highlightId);
-          localStorage.removeItem("goToLastPage");
-          localStorage.removeItem("highlightPrId");
-        }
-      });
-    }
+  if (highlightId && props.highlightPrId) {
+    setHighlightPrId(highlightId);
+    localStorage.removeItem("highlightPrId");
   } else if (props.highlightPrId) {
     setHighlightPrId(props.highlightPrId);
   }
-}, []);
+}, [props.highlightPrId]);
+
 
   // ✅ Month options memoized
   const monthOptions = useMemo(
@@ -68,10 +86,15 @@ useEffect(() => {
     []
   );
 
-  // ✅ SweetAlert helper
-  const showAlert = useCallback((icon, title, text, color = "#4f46e5") => {
-    Swal.fire({ icon, title, text, confirmButtonColor: color });
-  }, []);
+const showAlert = useCallback((success, title, text) => {
+  setAlertDialog({
+    open: true,
+    title,
+    text,
+    success,
+  });
+}, []);
+
 
   const handleFileChange = useCallback((e, id) => {
     const file = e.target.files[0];
@@ -80,44 +103,56 @@ useEffect(() => {
     }
   }, []);
 
-  const handleSendForApproval = useCallback(
-    (id) => {
-      Swal.fire({
-        title: "Send for Approval?",
-        text: "You won't be able to edit this PR after sending.",
-        icon: "warning",
-        showCancelButton: true,
-        confirmButtonColor: "#4f46e5",
-        cancelButtonColor: "#d33",
-        confirmButtonText: "Confirm",
-      }).then((result) => {
-        if (result.isConfirmed) {
-          const formData = new FormData();
-          if (approvalImages[id]) {
-            formData.append("approval_image", approvalImages[id]);
-          }
+const handleSendForApproval = useCallback((id) => {
+  setConfirmDialog({
+    open: true,
+    prId: id,
+    text: "You won't be able to edit this PR after sending.",
+  });
+}, []);
 
-          router.post(route("requester.pr.send_for_approval", id), formData, {
-            forceFormData: true,
-            preserveScroll: true,
-            preserveState: true,
-            onSuccess: () => {
-              showAlert("success", "Sent!", "The approved PR form has been sent.");
-              setApprovalImages((prev) => {
-                const copy = { ...prev };
-                delete copy[id];
-                return copy;
-              });
-            },
-            onError: () => {
-              showAlert("error", "Error", "Failed to send approved PR form.", "#d33");
-            },
-          });
-        }
+const handleConfirmSend = useCallback(() => {
+  if (!confirmDialog.prId) return;
+  setIsSendingApproval(true);
+
+  const id = confirmDialog.prId;
+  const formData = new FormData();
+  if (approvalImages[id]) {
+    formData.append("approval_image", approvalImages[id]);
+  }
+
+  router.post(route("requester.pr.send_for_approval", id), formData, {
+    forceFormData: true,
+    preserveScroll: true,
+    preserveState: true,
+    onSuccess: () => {
+      setResultDialog({
+        open: true,
+        success: true,
+        title: "Sent!",
+        text: "The approved PR form has been sent.",
       });
+      setApprovalImages((prev) => {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      });
+      setConfirmDialog({ open: false, prId: null, text: "" });
+      setIsSendingApproval(false);
     },
-    [approvalImages, showAlert]
-  );
+    onError: () => {
+      setResultDialog({
+        open: true,
+        success: false,
+        title: "Error",
+        text: "Failed to send approved PR form.",
+      });
+      setConfirmDialog({ open: false, prId: null, text: "" });
+      setIsSendingApproval(false);
+    },
+  });
+}, [confirmDialog.prId, approvalImages]);
+
 
   const handlePrint = useCallback((id) => {
     window.open(route("requester.print", id), "_blank");
@@ -138,8 +173,6 @@ useEffect(() => {
 
   return () => clearTimeout(delay);
 }, [search, month]);
-
-
 useEffect(() => {
   let interval;
   const startPolling = () => {
@@ -157,6 +190,7 @@ useEffect(() => {
   startPolling();
   return () => clearInterval(interval);
 }, []);
+
 
 
   return (
@@ -277,21 +311,33 @@ useEffect(() => {
 
                   {/* Actions */}
                   <td className="px-6 py-4 text-center space-x-2">
-                    {pr.is_sent === 0 && (
-                      <button
-                        onClick={() => handleSendForApproval(pr.id)}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-md text-sm"
-                      >
-                        Send For Approval
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handlePrint(pr.id)}
-                      className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-md text-sm"
-                    >
-                      Print
-                    </button>
-                  </td>
+                      {pr.is_sent === 0 && (
+                        <div className="relative group inline-block">
+                          <button
+                            onClick={() => handleSendForApproval(pr.id)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-sm"
+                          >
+                            <SendHorizontalIcon />
+                          </button>
+                          <span className="absolute bottom-full mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
+                            Send for Approval
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="relative group inline-block">
+                        <button
+                          onClick={() => handlePrint(pr.id)}
+                          className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-md text-sm"
+                        >
+                          <PrinterIcon />
+                        </button>
+                        <span className="absolute bottom-full mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
+                          Print
+                        </span>
+                      </div>
+                    </td>
+
                 </tr>
               ))}
             </tbody>
@@ -336,6 +382,35 @@ useEffect(() => {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  <Dialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog({ ...confirmDialog, open })}>
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Send for Approval?</DialogTitle>
+        <DialogDescription>{confirmDialog.text}</DialogDescription>
+      </DialogHeader>
+      <DialogFooter className="flex justify-between gap-2">
+        <Button variant="outline" onClick={() => setConfirmDialog({ ...confirmDialog, open: false })}>
+          Cancel
+        </Button>
+        <Button onClick={handleConfirmSend} disabled={isSendingApproval}>{isSendingApproval ? "Sending..." : "Confirm"}</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+  <Dialog open={resultDialog.open} onOpenChange={(open) => setResultDialog({ ...resultDialog, open })}>
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle className={resultDialog.success ? "text-green-600" : "text-red-600"}>
+          {resultDialog.success ? "✅ " : "❌ "} {resultDialog.title}
+        </DialogTitle>
+        <DialogDescription>{resultDialog.text}</DialogDescription>
+      </DialogHeader>
+      <DialogFooter>
+        <Button onClick={() => setResultDialog({ ...resultDialog, open: false })}>OK</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+
 
     </RequesterLayout>
   );

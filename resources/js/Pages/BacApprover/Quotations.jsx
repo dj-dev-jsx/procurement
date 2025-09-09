@@ -7,6 +7,7 @@ export default function Quotation({ purchaseRequests, filters = {} }) {
   const [prNumber, setPrNumber] = useState(filters.prNumber || "");
   const [focalPerson, setFocalPerson] = useState(filters.focalPerson || "");
   const [division, setDivision] = useState(filters.division || "");
+  console.log(purchaseRequests);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -142,13 +143,31 @@ export default function Quotation({ purchaseRequests, filters = {} }) {
                       <td className="px-4 py-2 text-gray-700">{quantities.slice(0, 2).join(", ")}{quantities.length > 2 ? ` +${quantities.length - 2} more` : ""}</td>
                       <td className="px-4 py-2 text-gray-700">₱{totalPrice.toLocaleString()}</td>
                       <td className="px-4 py-2">
-                        <a
-                          href={route("bac_approver.quoted_price", pr.id)}
-                          className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition focus:outline-none focus:ring-2 focus:ring-green-400"
-                        >
-                          <span className="mr-2">₱</span> Enter Quoted Price
-                        </a>
+                        {pr.rfqs?.some(rfq => rfq.details?.some(d => d.is_winner)) ? (
+                          <div className="flex flex-col items-center">
+                            <button
+                              disabled
+                              className="inline-flex items-center px-4 py-2 bg-gray-400 text-white text-sm font-medium rounded-md cursor-not-allowed"
+                              title="Winner already selected, cannot enter quoted price"
+                            >
+                              <span className="mr-2">₱</span> Enter Quoted Price
+                            </button>
+                            <small className="text-xs text-red-500 mt-1 text-center">
+                              A winner has already been selected for this PR
+                            </small>
+                          </div>
+                        ) : (
+                          <a
+                            href={route("bac_approver.quoted_price", pr.id)}
+                            className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition focus:outline-none focus:ring-2 focus:ring-green-400"
+                          >
+                            <span className="mr-2">₱</span> Enter Quoted Price
+                          </a>
+                        )}
                       </td>
+
+
+
                     </tr>
                   );
                 })}

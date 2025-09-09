@@ -319,10 +319,12 @@ public function purchase_orders(Request $request){
                 ]);
             }
         });
+        
 
         return redirect()
             ->route('supply_officer.purchase_orders_table')
             ->with('success', 'Purchase Order successfully created with auditing.');
+            
     }
 
 

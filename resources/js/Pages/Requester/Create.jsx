@@ -13,6 +13,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import axios from "axios";
 
 
 function CreateProductModal({ open, onClose, units, categories, onProductSaved }) {
@@ -424,6 +425,8 @@ export default function Create({ requestedBy, products, units, categories }) {
 const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 const [showResultDialog, setShowResultDialog] = useState(false);
 const [resultMessage, setResultMessage] = useState({ title: "", text: "", success: true });
+const [isSubmitting, setIsSubmitting] = useState(false);
+
 const handleSubmit = (e) => {
   e.preventDefault();
   console.log("Form data before submit:", data);
@@ -431,13 +434,24 @@ const handleSubmit = (e) => {
   setShowConfirmDialog(true);
 };
 
-const handleConfirmSubmit = () => {
-    post(route("requester.store"), {
-        onFinish: () => {
-            setShowConfirmDialog(false);
-        },
-    });
+const handleConfirmSubmit = async () => {
+    setIsSubmitting(true);
+    try {
+        const response = await axios.post(route("requester.store"), data);
+
+        if (response.data.success) {
+            localStorage.setItem("flashSuccess", response.data.message);
+            localStorage.setItem("highlightPrId", response.data.highlightPrId);
+            window.location.href = route("requester.manage_requests");
+        }
+    } catch (error) {
+        console.error(error);
+    } finally {
+        setIsSubmitting(false);
+    }
 };
+
+
 
 const handleProductSelect = (productId) => {
     const selected = products.find(p => p.id === productId);
@@ -747,10 +761,10 @@ useEffect(() => {
                 </Button>
                 <Button
                     onClick={handleConfirmSubmit}
-                    disabled={processing}
+                    disabled={isSubmitting}
                     className="bg-green-600 hover:bg-green-700"
                 >
-                    {processing ? "Submitting..." : "Confirm"}
+                    {isSubmitting ? "Submitting..." : "Confirm"}
                 </Button>
                 </DialogFooter>
             </DialogContent>

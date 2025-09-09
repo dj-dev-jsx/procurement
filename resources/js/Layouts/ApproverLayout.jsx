@@ -14,6 +14,7 @@ import logo from '../src/deped1.png';
 import { Inertia } from '@inertiajs/inertia';
 import { CheckCircleIcon, ClipboardCheckIcon, FileTextIcon } from 'lucide-react';
 import { Toaster } from "@/components/ui/toaster";
+import usePolling from "@/hooks/usePolling";
 
 export default function ApproverLayout({ header, children }) {
   const { user } = usePage().props.auth;

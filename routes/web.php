@@ -82,10 +82,10 @@ Route::middleware(['auth', 'role:bac_approver'])->prefix('bac_approver')->group(
     Route::get('/approved_requests', [ApproverController::class, 'approved_requests'])->name('bac_approver.approved_requests');
     Route::get('/generate_rfq/{pr}', [ApproverController::class, 'generate_rfq'])->name('bac_approver.generate_rfq');
     Route::post('/store_rfq', [ApproverController::class, 'store_rfq'])->name('bac_approver.store_rfq');
-    Route::get('/print_rfq/{pr}', [ApproverController::class, 'print_rfq'])->name('bac_approver.print_rfq');
+    Route::get('/print_rfq/{id}', [ApproverController::class, 'print_rfq'])->name('bac_approver.print_rfq');
     Route::get('/print_rfq_per_item/{rfq}/{detail}', [ApproverController::class, 'print_rfq_per_item'])->name('bac_approver.print_rfq_per_item');
     Route::get('/for_review', [ApproverController::class, 'for_review'])->name('bac_approver.for_review');
-    Route::get('/approve/{pr}', [ApproverController::class, 'approve'])->name('bac_approver.approve');
+    Route::post('/approve/{pr}', [ApproverController::class, 'approve'])->name('bac_approver.approve');
     Route::get('/show_details/{pr}', [ApproverController::class, 'show_details'])->name('bac_approver.show_details');
     Route::get('/quoted_price/{pr}', [ApproverController::class, 'quoted_price'])->name('bac_approver.quoted_price');
     Route::get('/for_quotations', [ApproverController::class, 'for_quotations'])->name('bac_approver.for_quotations');

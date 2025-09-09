@@ -163,8 +163,8 @@ class RequesterController extends Controller
     public function create_product()
     {
         return Inertia::render('Requester/CreateProduct', [
-            'units' => \App\Models\Unit::all(),         // tbl_units
-            'categories' => \App\Models\Category::all() // tbl_categories
+            'units' => Unit::all(),         // tbl_units
+            'categories' => Category::all() // tbl_categories
         ]);
     }
     
@@ -177,14 +177,13 @@ class RequesterController extends Controller
         'default_price' => 'nullable|numeric|min:0',
     ]);
 
-    \App\Models\Products::create($validated);
+    Products::create($validated);
 
     return redirect()->route('requester.create') // go back to PR creation
                      ->with('success', 'Product created successfully!');
     }
 public function store(Request $request)
-{   
-    
+{
     $request->validate([
         'focal_person' => 'required|exists:users,id',
         'pr_number' => 'required|string|max:50|unique:tbl_purchase_requests,pr_number',
@@ -202,9 +201,6 @@ public function store(Request $request)
     ]);
 
     DB::transaction(function () use ($request) {
-        $finalPrNumber = $this->generatePrNumber();
-
-        // Step 1: Create the Purchase Request
         $purchaseRequest = PurchaseRequest::create([
             'focal_person_user' => $request['focal_person'],
             'pr_number' => $request['pr_number'],
@@ -215,7 +211,6 @@ public function store(Request $request)
 
         $totalPRPrice = 0;
 
-        // Step 2: Create PR Details
         foreach ($request['products'] as $item) {
             $totalItemPrice = $item['quantity'] * $item['unit_price'];
             $totalPRPrice += $totalItemPrice;
@@ -232,20 +227,16 @@ public function store(Request $request)
             ]);
         }
 
-        // Step 3: Update total price
-        $purchaseRequest->update([
-            'total_price' => $totalPRPrice,
-        ]);
+        $purchaseRequest->update(['total_price' => $totalPRPrice]);
     });
 
-    return redirect()
-        ->route('requester.manage_requests')
-        ->with('success', 'Purchase Request successfully submitted!')
-        ->with('highlightPrId', "This is typeshii");
+    return response()->json([
+        'success' => true,
+        'message' => 'Purchase Request successfully submitted!',
+    ]);
 
+}
 
-    
-}    
 public function manage_requests(Request $request)
 {
     $userId = Auth::id();
@@ -303,6 +294,9 @@ $purchaseRequests = $query->paginate(10)->withQueryString();
     'search' => $search,
     'month' => $request->month,
     'highlightPrId' => session('highlightPrId'),
+    'flash' => [
+        'success' => session('success'),
+    ],
 ]);
 
 }

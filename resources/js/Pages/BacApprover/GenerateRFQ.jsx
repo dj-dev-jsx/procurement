@@ -4,7 +4,7 @@ import ApproverLayout from "@/Layouts/ApproverLayout";
 import { Head } from "@inertiajs/react";
 
 export default function GenerateRFQ({ pr, purchaseRequest }) {
-
+console.log(pr.id)
   useEffect(() => {
     console.log("Full Purchase Request Prop:", JSON.stringify(pr, null, 2));
   }, [pr]);
@@ -70,14 +70,13 @@ export default function GenerateRFQ({ pr, purchaseRequest }) {
               </h2>
 
               {/* Print All Items */}
-              <div className="mb-4">
-                <button
-                  onClick={() => window.open(route("bac_approver.print_rfq", pr.id), "_blank")}
-                  className="text-sm text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md shadow-sm"
-                >
-                  🖨️ Print All Items
-                </button>
-              </div>
+              <button
+                onClick={() => window.open(route("bac_approver.print_rfq", pr.id), "_blank")}
+                className="text-sm text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md shadow-sm mb-4"
+              >
+                🖨️ Print All Items
+              </button>
+
 
               {/* Items Table */}
               {pr.details && pr.details.length > 0 ? (
@@ -104,17 +103,17 @@ export default function GenerateRFQ({ pr, purchaseRequest }) {
                             minimumFractionDigits: 2,
                           })}`}
                         </td>
-<td className="py-2 px-4 border">
-  <button
-    onClick={() => window.open(
-      route("bac_approver.print_rfq_per_item", { rfq: pr.id, detail: item.id }),
-      "_blank"
-    )}
-    className="text-sm text-white bg-green-600 hover:bg-green-700 px-3 py-1 rounded-md"
-  >
-    🖨️ Print
-  </button>
-</td>
+                          <td className="py-2 px-4 border">
+                            <button
+                              onClick={() => window.open(
+                                route("bac_approver.print_rfq_per_item", { rfq: pr.id, detail: item.id }),
+                                "_blank"
+                              )}
+                              className="text-sm text-white bg-green-600 hover:bg-green-700 px-3 py-1 rounded-md"
+                            >
+                              🖨️ Print
+                            </button>
+                          </td>
 
                       </tr>
                     ))}
