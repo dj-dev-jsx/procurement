@@ -453,12 +453,13 @@ const [skippedItems, setSkippedItems] = useState([]);
           </h1>
         </div>
         <div className="mb-4">
-          <button
-            onClick={() => window.history.back()}
+          <a
+          type="button"
+            href={route("bac_approver.for_quotations")}
             className="inline-flex items-center px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-md text-sm shadow-sm"
           >
             ← Back
-          </button>
+          </a>
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">

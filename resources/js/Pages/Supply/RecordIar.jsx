@@ -204,50 +204,51 @@ const handleItemChange = (index, field, value) => {
     );
   };
 
-  return (
+return (
     <SupplyOfficerLayout header="Schools Divisions Office - Ilagan | Record Inspection and Acceptance">
       <Head title="Record IAR" />
-      <div className="min-h-screen bg-gray-100 p-8 pt-10">
-        <div className="bg-white p-10 shadow-xl rounded-2xl">
+
+      {/* --- Overall Page Background --- */}
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 p-4 sm:p-6 md:p-10">
+        <div className="bg-white/90 backdrop-blur-sm p-6 sm:p-8 md:p-10 shadow-2xl rounded-2xl max-w-7xl mx-auto">
           {/* HEADER */}
-          <div className="mb-10 pb-6 border-b border-gray-200">
-            <h2 className="text-4xl font-extrabold text-gray-900 leading-tight">
+          <div className="mb-8 pb-6 border-b border-gray-200">
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 leading-tight">
               Record Inspection and Acceptance Report
             </h2>
-            <p className="text-lg text-gray-600 mt-2">
-              For Purchase Order <span className="font-semibold text-blue-700">#{po.po_number}</span>
+            <p className="text-base sm:text-lg text-gray-600 mt-2">
+              For Purchase Order{" "}
+              <span className="font-semibold text-blue-700">#{po.po_number}</span>
             </p>
           </div>
 
-          {/* Global ERRORS */}
+          {/* ERRORS */}
           {Object.keys(errors).length > 0 && (
-            <div
-              className="bg-red-50 border-l-4 border-red-400 text-red-800 p-4 rounded-md mb-8 shadow-sm"
-              role="alert"
-            >
-              <h3 className="font-bold text-lg mb-2">Please correct the following errors:</h3>
+            <div className="bg-red-50 border-l-4 border-red-400 text-red-800 p-4 rounded-lg mb-6">
+              <h3 className="font-bold mb-2">Please correct the following:</h3>
               <ul className="list-disc list-inside text-sm">
-                {Object.entries(errors).map(([key, message]) => (
-                  // Only show top-level errors, individual field errors will be shown next to fields
-                  // Filter out item-specific errors here, as they are shown inline
-                  !key.startsWith('items.') && <li key={key}>{message}</li>
-                ))}
+                {Object.entries(errors).map(
+                  ([key, message]) =>
+                    !key.startsWith("items.") && <li key={key}>{message}</li>
+                )}
               </ul>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-12">
+          <form onSubmit={handleSubmit} className="space-y-10">
             {/* --- Section 1: Global Information --- */}
             <section className="space-y-6">
-              <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
-                <ClipboardSignature size={24} className="text-blue-600" />
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2 sm:gap-3">
+                <ClipboardSignature className="text-blue-600" size={22} />
                 Global Information
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-8 border border-gray-200 rounded-xl bg-gradient-to-br from-blue-50 to-white shadow-md">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 border border-blue-100 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 shadow-sm">
+
+                {/* IAR Number */}
                 <LabeledInput
                   icon={<ScanLine size={18} className="text-gray-500" />}
                   label="IAR Number"
-                  error={errors.iar_number} // Error for iar_number
+                  error={errors.iar_number}
                 >
                   <Input
                     type="text"
@@ -258,16 +259,18 @@ const handleItemChange = (index, field, value) => {
                     required
                   />
                 </LabeledInput>
+
+                {/* Date */}
                 <LabeledInput
                   icon={<CalendarCheck size={18} className="text-gray-500" />}
                   label="Date Received"
-                  error={errors.date_received} // Error for date_received
+                  error={errors.date_received}
                 >
                   <Input
                     type="date"
                     value={data.date_received}
                     onChange={(e) => setData("date_received", e.target.value)}
-                    className="h-12 text-base"
+                    className="h-12 text-base focus-visible:ring-yellow-400 bg-gray-50"
                     required
                   />
                 </LabeledInput>
@@ -275,126 +278,143 @@ const handleItemChange = (index, field, value) => {
             </section>
 
             {/* --- Section 2: Received Items --- */}
-            <section className="space-y-8">
-              <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
-                <Boxes size={24} className="text-blue-600" />
+            <section className="space-y-6">
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2 sm:gap-3">
+                <Boxes className="text-blue-600" size={22} />
                 Received Items
               </h3>
-              {data.items.map((item, index) => {
-                const totalReceivedPrice =
-                  (parseFloat(item.quantity_received) || 0) * item.unit_price;
-                const hasDiscrepancy =
-                  parseFloat(item.quantity_received || 0) !== item.quantity_ordered &&
-                  parseFloat(item.quantity_received || 0) > 0; // Only show discrepancy if something was actually received
 
-                return (
-                  <div
-                    key={item.pr_details_id}
-                    className="bg-white border border-gray-200 rounded-xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out"
-                  >
-                    {/* Item Header */}
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-6 border-b border-gray-100">
-                      <div>
-                        <h4 className="text-xl font-semibold text-blue-800 leading-snug">
-                          {item.product_name}
-                        </h4>
-                        <p className="text-md text-gray-600 mt-1">{item.specs}</p>
+              <div className="grid gap-6">
+                {data.items.map((item, index) => {
+                  const totalReceivedPrice =
+                    (parseFloat(item.quantity_received) || 0) * item.unit_price;
+                  const hasDiscrepancy =
+                    parseFloat(item.quantity_received || 0) !==
+                      item.quantity_ordered &&
+                    parseFloat(item.quantity_received || 0) > 0;
+
+                  return (
+                    <div
+                      key={item.pr_details_id}
+                      className="bg-gradient-to-br from-blue-100 to-white border border-blue-100 rounded-xl p-6 shadow-md hover:shadow-lg transition"
+                    >
+
+                      {/* Item Header */}
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-4 border-b border-gray-100">
+                        <div>
+                          <h4 className="text-lg sm:text-xl font-semibold text-blue-800">
+                            {item.product_name}
+                          </h4>
+                          <p className="text-sm sm:text-md text-gray-600 mt-1">
+                            {item.specs}
+                          </p>
+                        </div>
+                        <div className="text-right mt-4 sm:mt-0">
+                          <p className="text-sm font-medium text-gray-500 flex items-center justify-end gap-1">
+                            <BadgeDollarSign size={14} /> Unit Price
+                          </p>
+                          <p className="text-xl sm:text-2xl font-bold text-green-700">
+                            ₱{item.unit_price.toFixed(2)}
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right sm:ml-4 mt-4 sm:mt-0">
-                        <p className="text-sm font-medium text-gray-600 flex items-center justify-end gap-1">
-                          <BadgeDollarSign size={16} /> Unit Price
-                        </p>
-                        <p className="text-2xl font-extrabold text-green-700 tracking-wide">
-                          ₱{item.unit_price.toFixed(2)}
-                        </p>
-                      </div>
-                    </div>
 
-                    {/* Quantities & Totals Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <LabeledInput icon={<Package size={18} />} label="Quantity Ordered">
-                        <Input
-                          type="text"
-                          className="bg-gray-50 text-gray-800 text-center font-bold text-xl h-14 border-gray-200 cursor-not-allowed"
-                          value={item.quantity_ordered}
-                          readOnly
-                        />
-                      </LabeledInput>
+                      {/* Quantities */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+                        <LabeledInput
+                          icon={<Package size={16} />}
+                          label="Quantity Ordered"
+                        >
+                          <Input
+                            type="text"
+                            className="text-center font-bold h-12 border-gray-200 cursor-not-allowed"
+                            value={item.quantity_ordered}
+                            readOnly
+                          />
+                        </LabeledInput>
 
-                      <LabeledInput
-                        icon={<Boxes size={18} />}
-                        label="Quantity Received *"
-                        error={errors[`items.${index}.quantity_received`]} // Error for item quantity received
-                      >
-                        <Input
-                          type="number"
-                          className={`text-center font-bold text-xl h-14 ${
-                            hasDiscrepancy
-                              ? "border-yellow-500 focus-visible:ring-yellow-400 ring-4 ring-yellow-200"
-                              : "border-gray-300"
-                          } transition-all duration-200`}
-                          placeholder="0"
-                          value={item.quantity_received}
-                          onChange={(e) =>
-                            handleItemChange(index, "quantity_received", e.target.value)
-                          }
-                          min="0"
-                          required
-                        />
-                         {hasDiscrepancy && (
-                            <p className="text-yellow-600 text-sm mt-1 flex items-center gap-1">
-                                <Info size={14} /> Discrepancy with ordered quantity.
+                        <LabeledInput
+                          icon={<Boxes size={16} />}
+                          label="Quantity Received *"
+                          error={errors[`items.${index}.quantity_received`]}
+                        >
+                          <Input
+                            type="number"
+                            className={`text-center focus-visible:ring-yellow-400 bg-gray-50 font-bold h-12 ${
+                              hasDiscrepancy
+                                ? "border-yellow-500 focus-visible:ring-yellow-400"
+                                : "border-gray-300"
+                            }`}
+                            value={item.quantity_received}
+                            onChange={(e) =>
+                              handleItemChange(
+                                index,
+                                "quantity_received",
+                                e.target.value
+                              )
+                            }
+                            min="0"
+                            placeholder="Quantity Received"
+                            required
+                          />
+                          {hasDiscrepancy && (
+                            <p className="text-yellow-600 text-xs mt-1 flex items-center gap-1">
+                              <Info size={12} /> Discrepancy with ordered qty
                             </p>
-                        )}
-                      </LabeledInput>
+                          )}
+                        </LabeledInput>
 
-                      <LabeledInput icon={<ScanLine size={18} />} label="Total for Item">
-                        <Input
-                          type="text"
-                          className="bg-blue-50 text-blue-800 text-center font-extrabold text-xl h-14 border-blue-200 cursor-not-allowed"
-                          value={totalReceivedPrice.toLocaleString("en-US", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                          readOnly
-                        />
-                      </LabeledInput>
-                    </div>
+                        <LabeledInput
+                          icon={<ScanLine size={16} />}
+                          label="Total for Item"
+                        >
+                          <Input
+                            type="text"
+                            className="bg-blue-50 text-blue-800 text-center font-extrabold h-12 border-blue-200 cursor-not-allowed"
+                            value={totalReceivedPrice.toLocaleString("en-US", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                            readOnly
+                          />
+                        </LabeledInput>
+                      </div>
 
-                    {/* Remarks */}
-                    <div className="mt-8">
-                      <LabeledInput
-                        icon={<MessageSquareText size={18} />}
-                        label="Remarks"
-                        error={errors[`items.${index}.remarks`]} // Error for item remarks
-                      >
-                        <Textarea
-                          placeholder="Add remarks for this item (e.g., damaged box, wrong color, incomplete delivery)"
-                          value={item.remarks}
-                          onChange={(e) =>
-                            handleItemChange(index, "remarks", e.target.value)
-                          }
-                          rows={3}
-                          className="min-h-[80px]"
-                          required
-                        />
-                      </LabeledInput>
+                      {/* Remarks */}
+                      <div className="mt-6">
+                        <LabeledInput
+                          icon={<MessageSquareText size={16} />}
+                          label="Remarks"
+                          error={errors[`items.${index}.remarks`]}
+                        >
+                          <Textarea
+                            placeholder="Add remarks (e.g., damaged, incomplete)"
+                            value={item.remarks}
+                            onChange={(e) =>
+                              handleItemChange(index, "remarks", e.target.value)
+                            }
+                            rows={3}
+                            className="min-h-[70px] focus-visible:ring-yellow-400 bg-gray-50"
+                            required
+                          />
+                        </LabeledInput>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </section>
 
-            {/* --- Section 3: Footer & Committee --- */}
-            <section className="border-t border-gray-200 pt-10 space-y-10">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-end">
-                {/* COMMITTEE MEMBERS */}
-                <div className="lg:col-span-2 p-8 border border-gray-200 rounded-xl bg-gray-50 shadow-md">
-                  <h3 className="text-2xl font-bold mb-6 text-gray-800 flex items-center gap-3">
-                    <Users size={24} className="text-blue-600" />
+            {/* --- Section 3: Footer --- */}
+            <section className="border-t border-gray-200 pt-8 space-y-8">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+                {/* COMMITTEE */}
+                <div className="lg:col-span-2 p-6 border border-blue-100 rounded-xl bg-blue-50/70 shadow-sm">
+                  <h3 className="text-xl sm:text-2xl font-bold mb-4 text-gray-800 flex items-center gap-2">
+                    <Users size={20} className="text-blue-600" />
                     Inspection Committee
                   </h3>
-                  <ul className="space-y-4">
+                  <ul className="space-y-3">
                     {data.committee_members
                       ?.filter((m) => m.status === "active")
                       .sort((a, b) => {
@@ -404,11 +424,12 @@ const handleItemChange = (index, field, value) => {
                       })
                       .map((member) => (
                         <li
-                          key={member.id}
-                          className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white p-5 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 border border-gray-100"
-                        >
-                          <div className="mb-2 sm:mb-0">
-                            <p className="font-semibold text-lg text-gray-800">{member.name}</p>
+                            key={member.id}
+                            className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-blue-50 p-4 rounded-lg shadow-sm border border-blue-100"
+                          >
+
+                          <div>
+                            <p className="font-semibold text-gray-800">{member.name}</p>
                             <p className="text-sm text-gray-500">{member.position}</p>
                           </div>
                           <Button
@@ -416,7 +437,7 @@ const handleItemChange = (index, field, value) => {
                             variant="outline"
                             size="sm"
                             onClick={() => handleReplaceMember(member)}
-                            className="text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                            className="text-blue-600 border-blue-200 hover:bg-blue-50"
                           >
                             Replace
                           </Button>
@@ -425,11 +446,13 @@ const handleItemChange = (index, field, value) => {
                   </ul>
                 </div>
 
-                {/* Grand Total */}
+                {/* GRAND TOTAL */}
                 <div className="lg:col-span-1 flex justify-center lg:justify-end">
-                  <div className="text-center p-8 rounded-xl bg-blue-600 text-white shadow-xl min-w-[280px]">
-                    <p className="text-lg font-semibold mb-2 opacity-90">Grand Total Received</p>
-                    <p className="text-5xl font-extrabold tracking-tight">
+                  <div className="text-center p-6 sm:p-8 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md w-full sm:w-auto">
+                    <p className="text-base sm:text-lg font-semibold mb-2 opacity-90">
+                      Grand Total Received
+                    </p>
+                    <p className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight break-words">
                       ₱
                       {grandTotal.toLocaleString("en-US", {
                         minimumFractionDigits: 2,
@@ -440,14 +463,14 @@ const handleItemChange = (index, field, value) => {
                 </div>
               </div>
 
-              <div className="flex justify-end mt-10">
+              {/* SAVE BUTTON */}
+              <div className="flex justify-end">
                 <Button
                   type="submit"
-                  className="px-10 py-4 text-lg bg-blue-700 hover:bg-blue-800 text-white flex items-center gap-3 shadow-lg transition-all transform hover:-translate-y-1 hover:shadow-xl rounded-xl"
-                  disabled={processing}
-                >
-                  <Save size={20} />
-                  {processing ? "Saving..." : "Save Inspection Report"}
+                  className="px-8 sm:px-10 py-3 sm:py-4 text-base sm:text-lg bg-blue-700 hover:bg-blue-800 text-white flex items-center gap-2 shadow-md hover:shadow-lg transition rounded-xl"
+                > 
+                  <Save size={18} />
+                  Save Inspection Report
                 </Button>
               </div>
             </section>
@@ -455,8 +478,7 @@ const handleItemChange = (index, field, value) => {
         </div>
       </div>
 
-      {/* REPLACE DIALOG */}
-      <Dialog open={replaceDialogOpen} onOpenChange={setReplaceDialogOpen}>
+     <Dialog open={replaceDialogOpen} onOpenChange={setReplaceDialogOpen}>
         <DialogContent className="sm:max-w-md p-6">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold">Replace Committee Member</DialogTitle>
@@ -500,8 +522,8 @@ const handleItemChange = (index, field, value) => {
             <Button variant="outline" onClick={() => setConfirmDialogOpen(false)} className="px-6 py-2">
               Cancel
             </Button>
-            <Button onClick={handleConfirmSave} className="px-6 py-2 bg-green-600 hover:bg-green-700">
-              Yes, Record IAR
+            <Button disabled={processing} onClick={handleConfirmSave} className="px-6 py-2 bg-green-600 hover:bg-green-700">
+              {processing ? "Saving..." : "Confirm"}
             </Button>
           </DialogFooter>
         </DialogContent>

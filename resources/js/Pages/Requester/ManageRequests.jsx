@@ -49,6 +49,7 @@ useEffect(() => {
     toast({
         title: "PR Submitted",
         description: message,
+        className: "bg-green-500 text-white",
         duration: 3000,
       });
     localStorage.removeItem("flashSuccess");
@@ -131,6 +132,12 @@ const handleConfirmSend = useCallback(() => {
         success: true,
         title: "Sent!",
         text: "The approved PR form has been sent.",
+      });
+      toast({
+        title: "PR Sent",
+        description: "PR is sent for approval",
+        className: "bg-green-500 text-white",
+        duration: 3000,
       });
       setApprovalImages((prev) => {
         const copy = { ...prev };

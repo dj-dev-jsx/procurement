@@ -33,50 +33,55 @@
         <p><strong>Venue:</strong> _____________</p>
     </div>
 
-    <table>
-        <thead style="background:#f2f2f2;">
+<table>
+    <thead style="background:#f2f2f2;">
+        <tr>
+            <th style="width:8%;">No.</th>
+            <th>Name of Contractor / Offeror</th>
+            <th>Total Quotations</th>
+            <th>Remarks</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach($top3 as $idx => $detail)
             <tr>
-                <th style="width:8%;">No.</th>
-                <th>Name of Contractor / Offeror</th>
-                <th>Total Quotations</th>
-                <th>Remarks</th>
+                <td>{{ $idx+1 }}</td>
+                <td>{{ $detail['supplier']->company_name }}</td>
+                <td>
+                    ₱{{ number_format($detail['total_amount'], 2) }}
+                </td>
+                <td>
+                    {{ $detail['is_winner'] ? ($detail['remarks'] ?? 'Winner') : '' }}
+                </td>
             </tr>
-        </thead>
-        <tbody>
-            @foreach($top3 as $idx => $detail)
-                <tr>
-                    <td>{{ $idx+1 }}</td>
-                    <td>{{ $detail['supplier']->company_name }}</td>
-                    <td>
-                        ₱{{ number_format($detail['total_amount'], 2) }}
-                    </td>
-                    <td>{{ !empty($detail['is_winner']) ? "Winner" : "" }}</td>
+        @endforeach
 
+        {{-- filler rows --}}
+        @for($i = count($top3); $i < 3; $i++)
+            <tr>
+                <td>{{ $i+1 }}</td>
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
+            </tr>
+        @endfor
+    </tbody>
+</table>
 
+@php
+    $awarded = collect($top3)->firstWhere('is_winner', 1);
+@endphp
 
-                </tr>
-            @endforeach
-            {{-- filler rows --}}
-            @for($i = count($top3); $i < 3; $i++)
-                <tr>
-                    <td>{{ $i+1 }}</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                </tr>
-            @endfor
-        </tbody>
-    </table>
+<p>
+    Awarded to:
+    <span style="text-decoration:underline; font-weight:bold;">
+        {{ $awarded['supplier']->company_name ?? '__________' }}
+    </span>
+    @if(!empty($awarded['remarks']))
+        offering the <em>{{ $awarded['remarks'] }}</em>.
+    @endif
+</p>
 
-    <p style="font-size:12px; margin-top:10px;">
-        Awarded to: 
-        <span style="text-decoration:underline; font-weight:bold;">
-            {{ is_array($top3[0]) 
-                ? $top3[0]['supplier']->company_name 
-                : $top3[0]->supplier->company_name }}
-        </span>
-        offering the <em>Approved Bid</em>.
-    </p>
 
 
 

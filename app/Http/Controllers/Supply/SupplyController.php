@@ -251,49 +251,56 @@ public function purchase_orders(Request $request){
         ]);
     }
 
-    public function store_po(Request $request)
-    {
-        
-        $request->validate([
-            'rfq_id' => 'required|exists:tbl_rfqs,id',
-            'supplier_id' => 'required|exists:tbl_suppliers,id',
-            'items' => 'required|array|min:1',
-            'items.*.pr_detail_id' => 'required|exists:tbl_pr_details,id',
-            'items.*.quantity' => 'required|numeric|min:0',
-            'items.*.unit_price' => 'required|numeric|min:0',
-            'items.*.total_price' => 'required|numeric|min:0',
-            'reason' => 'nullable|string|max:500', // add reason field
-        ]);
+public function store_po(Request $request)
+{
+    $request->validate([
+        'rfq_id' => 'required|exists:tbl_rfqs,id',
+        'items' => 'required|array|min:1',
+        'items.*.pr_detail_id' => 'required|exists:tbl_pr_details,id',
+        'items.*.quantity' => 'required|numeric|min:0',
+        'items.*.unit_price' => 'required|numeric|min:0',
+        'items.*.total_price' => 'required|numeric|min:0',
+    ]);
 
-        DB::transaction(function () use ($request) {
-            $firstPrDetailId = $request->items[0]['pr_detail_id'];
-            $purchaseRequest = PurchaseRequest::with(['focal_person', 'details'])
-                ->whereHas('details', function ($q) use ($firstPrDetailId) {
-                    $q->where('id', $firstPrDetailId);
-                })->firstOrFail();
+    DB::transaction(function () use ($request) {
+        $firstPrDetailId = $request->items[0]['pr_detail_id'];
+        $purchaseRequest = PurchaseRequest::with(['focal_person', 'details'])
+            ->whereHas('details', function ($q) use ($firstPrDetailId) {
+                $q->where('id', $firstPrDetailId);
+            })->firstOrFail();
 
-            $userId = is_object($purchaseRequest->focal_person)
-                ? $purchaseRequest->focal_person->id
-                : $purchaseRequest->focal_person;
+        $userId = is_object($purchaseRequest->focal_person)
+            ? $purchaseRequest->focal_person->id
+            : $purchaseRequest->focal_person;
 
-            if (!$userId) {
-                throw new \Exception("Focal person not assigned to this Purchase Request.");
-            }
+        if (!$userId) {
+            throw new \Exception("Focal person not assigned to this Purchase Request.");
+        }
 
-            // Generate PO number
-            $poNumber = $purchaseRequest->pr_number;
+        // --- Group items by supplier ---
+        $itemsBySupplier = collect($request->items)->groupBy('supplier_id');
+
+        $basePoNumber = $purchaseRequest->pr_number; // e.g. 25-09-001
+        $suffix = 'a';
+
+        foreach ($itemsBySupplier as $supplierId => $supplierItems) {
+            // If only one supplier won, use base PO number (no suffix)
+            $poNumber = $itemsBySupplier->count() === 1
+                ? $basePoNumber
+                : $basePoNumber . $suffix++;
 
             $po = PurchaseOrder::create([
                 'po_number' => $poNumber,
                 'rfq_id' => $request->rfq_id,
-                'supplier_id' => $request->supplier_id,
+                'supplier_id' => $supplierId,
                 'user_id' => $userId,
                 'status' => 'Not yet Delivered',
             ]);
 
-            foreach ($request->items as $item) {
+            foreach ($supplierItems as $item) {
                 $prDetail = $purchaseRequest->details->firstWhere('id', $item['pr_detail_id']);
                 $user = Auth::user();
+
                 // Audit log if qty differs
                 if ($prDetail && $prDetail->quantity != $item['quantity']) {
                     AuditLogs::create([
@@ -318,14 +325,14 @@ public function purchase_orders(Request $request){
                     'total_price' => $item['total_price'],
                 ]);
             }
-        });
-        
+        }
+    });
 
-        return redirect()
-            ->route('supply_officer.purchase_orders_table')
-            ->with('success', 'Purchase Order successfully created with auditing.');
-            
-    }
+    return redirect()
+        ->route('supply_officer.purchase_orders_table')
+        ->with('success', 'Purchase Order(s) successfully created with auditing.');
+}
+
 
 
     public function purchase_orders_table(Request $request){

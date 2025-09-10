@@ -1,8 +1,8 @@
+import { useToast } from "@/hooks/use-toast";
 import SupplyOfficerLayout from "@/Layouts/SupplyOfficerLayout";
 import { Head, useForm } from "@inertiajs/react";
 import { FileText, SendHorizonal } from "lucide-react";
 import { useState } from "react";
-import { useToast } from "@/components/ui/use-toast"; // ✅ import
 
 export default function IcsForm({ purchaseOrder, inventoryItem, user }) {
   const [showConfirm, setShowConfirm] = useState(false);

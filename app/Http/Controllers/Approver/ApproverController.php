@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Approver;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLogs;
 use App\Models\BacCommittee;
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestDetail;
@@ -570,23 +571,24 @@ public function submit_bulk_quoted(Request $request)
             'committee' => $committee
         ]);
     }
-public function markWinner(Request $request, $id, $pr_detail_id = null)
+public function markWinner(Request $request, $id)
 {
     $supplierId = $request->input('supplier_id');
-    $remarks = $request->input('remarks'); // ✅ capture remarks
+    $remarks = $request->input('remarks');
+    $prDetailId = $request->input('detail_id'); // ✅ check from payload
 
     if (!$supplierId) {
         return back()->with('error', 'A supplier was not specified.');
     }
 
-    if ($pr_detail_id) {
+    if ($prDetailId) {
         // --- PER-ITEM WINNER LOGIC ---
         RFQDetail::where('rfq_id', $id)
-            ->where('pr_details_id', $pr_detail_id)
+            ->where('pr_details_id', $prDetailId)
             ->update(['is_winner' => false]);
 
         $quoteToMark = RFQDetail::where('rfq_id', $id)
-            ->where('pr_details_id', $pr_detail_id)
+            ->where('pr_details_id', $prDetailId)
             ->where('supplier_id', $supplierId)
             ->first();
 
@@ -608,12 +610,59 @@ public function markWinner(Request $request, $id, $pr_detail_id = null)
             ->where('supplier_id', $supplierId)
             ->update([
                 'is_winner' => true,
-                'remarks' => $remarks, // ✅ save remarks
+                'remarks' => $remarks,
             ]);
     }
 
     return back()->with('success', 'Winner has been successfully updated.');
 }
+
+public function rollbackWinner(Request $request, $id)
+{
+    $user = Auth::user();
+    $request->validate([
+        'remarks' => 'required|string',
+        'mode'    => 'required|in:whole-pr,per-item',
+        'detail_id' => 'nullable|integer'
+    ]);
+
+    $rfq = RFQ::with('details')->findOrFail($id);
+
+    $changes = [];
+    if ($request->mode === 'whole-pr') {
+        // Rollback all winners for this RFQ
+        $changes = $rfq->details()
+            ->where('is_winner', true)
+            ->get(['id', 'pr_details_id', 'supplier_id']);
+        
+        $rfq->details()->update(['is_winner' => false]);
+
+    } elseif ($request->mode === 'per-item' && $request->detail_id) {
+        // Rollback winner for specific item
+        $changes = $rfq->details()
+            ->where('pr_details_id', $request->detail_id)
+            ->where('is_winner', true)
+            ->get(['id', 'pr_details_id', 'supplier_id']);
+
+        $rfq->details()
+            ->where('pr_details_id', $request->detail_id)
+            ->update(['is_winner' => false]);
+    }
+
+    // 🔎 Log the rollback in audit logs
+    AuditLogs::create([
+        'action'       => 'rollback_winner',
+        'entity_type'  => 'RFQ',
+        'entity_id'    => $rfq->id,
+        'changes'      => $changes->toJson(), // snapshot of what was rolled back
+        'reason'       => $request->remarks,  // remarks entered by user
+        'user_id'      => $user->id,
+    ]);
+
+    return back()->with('success', 'Winner rollback successful.');
+}
+
+
 
 public function printAOQ($id, $pr_detail_id = null)
 {
@@ -639,6 +688,14 @@ public function printAOQ($id, $pr_detail_id = null)
             ->sortBy('quoted_price')
             ->take(3)
             ->values();
+
+        // always render winner first if exists
+        $winner = $top3->firstWhere('is_winner', 1);
+        if ($winner) {
+            $top3 = collect([$winner])
+                ->merge($top3->where('id', '!=', $winner->id))
+                ->values();
+        }
 
         $pdf = PDF::loadView('pdf.aoq_item', [
             'rfq'      => $rfq,

@@ -50,11 +50,11 @@
                     <td>
                         ₱{{ number_format($detail->quoted_price, 2) }}
                     </td>
-                    <td>
+
                         <td>
                             {{ $detail['is_winner'] ? ($detail['remarks'] ?? 'Winner') : '' }}
                         </td>
-                    </td>
+
                 </tr>
             @endforeach
 
