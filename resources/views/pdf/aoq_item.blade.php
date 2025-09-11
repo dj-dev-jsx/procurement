@@ -43,35 +43,20 @@
             </tr>
         </thead>
         <tbody>
-            @foreach($top3 as $idx => $detail)
+            @foreach($quotes as $idx => $detail)
                 <tr>
                     <td>{{ $idx+1 }}</td>
                     <td>{{ $detail->supplier->company_name }}</td>
-                    <td>
-                        ₱{{ number_format($detail->quoted_price, 2) }}
-                    </td>
-
-                        <td>
-                            {{ $detail['is_winner'] ? ($detail['remarks'] ?? 'Winner') : '' }}
-                        </td>
-
+                    <td>₱{{ number_format($detail->quoted_price, 2) }}</td>
+                    <td>{{ $detail->is_winner ? 'Winner' : '' }}</td>
                 </tr>
             @endforeach
 
-            {{-- filler rows --}}
-            @for($i = count($top3); $i < 3; $i++)
-                <tr>
-                    <td>{{ $i+1 }}</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                </tr>
-            @endfor
         </tbody>
     </table>
 
     @php
-        $awarded = collect($top3)->firstWhere('is_winner', 1);
+        $awarded = collect($quotes)->firstWhere('is_winner', 1);
     @endphp
 
     <p>

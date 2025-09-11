@@ -21,9 +21,9 @@ return new class extends Migration
             $table->foreignId('category_id')
                     ->constrained('tbl_categories')
                     ->onDelete('cascade');
-            $table->foreignId('supplier_category_id')
+            $table->foreignId('supply_category_id')
                     ->nullable()
-                    ->constrained('tbl_supplier_categories')
+                    ->constrained('tbl_supply_categories')
                     ->onDelete('set null'); 
 
             $table->decimal('default_price', 10, 2)->nullable();

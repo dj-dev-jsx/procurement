@@ -11,7 +11,7 @@ class SupplierCategorySeeder extends Seeder
     {
         $categories = ['Local', 'International', 'Wholesale', 'Retail'];
         foreach ($categories as $cat) {
-            DB::table('tbl_supplier_categories')->insert([
+            DB::table('tbl_supply_categories')->insert([
                 'name' => $cat,
                 'created_at' => now(),
                 'updated_at' => now(),

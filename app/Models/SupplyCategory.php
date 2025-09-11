@@ -4,9 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class SupplierCategory extends Model
+class SupplyCategory extends Model
 {
-    protected $table = 'tbl_supplier_categories';
+    protected $table = 'tbl_supply_categories';
     protected $fillable = ['name'];
 
     public function suppliers()

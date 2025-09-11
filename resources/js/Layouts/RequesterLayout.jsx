@@ -41,45 +41,47 @@ export default function RequesterLayout({ header, children }) {
     }, []);
 
 useEffect(() => {
-  const fetchNotifications = async () => {
-    try {
-      const response = await axios.get('/notifications');
-      const notificationsWithReadFlag = response.data.map(n => ({
-        ...n,
-        read: n.read_at !== null,
-      }));
+const fetchNotifications = async () => {
+  try {
+    const response = await axios.get('/notifications', {
+      timeout: 10000, // 10s timeout
+    });
+    const notificationsWithReadFlag = response.data.map(n => ({
+      ...n,
+      read: n.read_at !== null,
+    }));
 
-      const newUnread = notificationsWithReadFlag.filter(n => !n.read).length;
-      const prevUnread = notifications.filter(n => !n.read).length;
+    const newUnread = notificationsWithReadFlag.filter(n => !n.read).length;
+    const prevUnread = notifications.filter(n => !n.read).length;
 
-      if (hasInitialized && newUnread > prevUnread) {
-        // find the newest unread notification
-        const latestNotification = notificationsWithReadFlag.find(n => !n.read);
-
-        if (latestNotification) {
-          const message =
-            latestNotification.data?.message ||
-            latestNotification.message ||
-            "📬 You have a new purchase request update!";
-
-          triggerFlash(message);
-        }
+    if (hasInitialized && newUnread > prevUnread) {
+      const latestNotification = notificationsWithReadFlag.find(n => !n.read);
+      if (latestNotification) {
+        const message =
+          latestNotification.data?.message ||
+          latestNotification.message ||
+          "📬 You have a new purchase request update!";
+        triggerFlash(message);
       }
-
-
-      setNotifications(notificationsWithReadFlag);
-
-      // Mark as initialized after first fetch
-      if (!hasInitialized) setHasInitialized(true);
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
     }
-  };
 
-  fetchNotifications();
-  const interval = setInterval(fetchNotifications, 10000); // Poll every 10s
+    setNotifications(notificationsWithReadFlag);
+    if (!hasInitialized) setHasInitialized(true);
+  } catch (error) {
+    if (axios.isCancel(error)) {
+      console.log("Request canceled:", error.message);
+    } else {
+      console.error("Error fetching notifications:", error);
+    }
+  }
+
+};
+
+
+fetchNotifications();
+  const interval = setInterval(fetchNotifications, 10000);
   return () => clearInterval(interval);
-}, [notifications, hasInitialized]);
+}, [hasInitialized]);
 
 
 

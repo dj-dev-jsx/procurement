@@ -13,7 +13,7 @@ class SupplierSeeder extends Seeder
         $faker = Faker::create();
         
         // Fetch existing category IDs
-        $categoryIds = DB::table('tbl_supplier_categories')->pluck('id')->toArray();
+        $categoryIds = DB::table('tbl_supply_categories')->pluck('id')->toArray();
 
         $suppliers = [];
 

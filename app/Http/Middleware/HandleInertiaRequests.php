@@ -37,20 +37,26 @@ class HandleInertiaRequests extends Middleware
                     ]
                     : null,
                 'notifications' => fn () => $request->user()
-                    ? $request->user()->unreadNotifications->map(function ($notification) {
-                        return [
-                            'id' => $notification->id,
-                            'type' => class_basename($notification->type),
-                            'data' => $notification->data,
-                            'created_at' => $notification->created_at->diffForHumans(),
-                        ];
-                    })
+                    ? $request->user()->unreadNotifications()
+                        ->latest()
+                        ->take(10)
+                        ->get()
+                        ->map(function ($notification) {
+                            return [
+                                'id' => $notification->id,
+                                'type' => class_basename($notification->type),
+                                'data' => $notification->data,
+                                'created_at' => $notification->created_at->diffForHumans(),
+                            ];
+                        })
                     : [],
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
+                'newProduct' => fn () => $request->session()->get('newProduct')
             ],
+            
         ]);
     }
 

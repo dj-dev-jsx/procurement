@@ -16,7 +16,7 @@ class Products extends Model
         'unit_id',
         'category_id',
         'default_price',
-        'supplier_category_id'
+        'supply_category_id'
     ];
     public function unit()
     {
@@ -29,6 +29,6 @@ class Products extends Model
     }
     public function supplier_category()
     {
-        return $this->belongsTo(SupplierCategory::class, 'supplier_category_id');
+        return $this->belongsTo(SupplyCategory::class, 'supply_category_id');
     }
 }

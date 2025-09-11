@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('representative_name', 100);
                 $table->foreignId('category_id')
                 ->nullable()
-                ->constrained('tbl_supplier_categories')
+                ->constrained('tbl_supply_categories')
                 ->nullOnDelete();
             $table->timestamps();
         });

@@ -18,6 +18,13 @@ export default function AbstractOfQuotations({ rfq, groupedDetails = {}, committ
 
   const [winnerDialogOpen, setWinnerDialogOpen] = useState(false);
   const [remarks, setRemarks] = useState("");
+  const [resultDialog, setResultDialog] = useState({
+  open: false,
+  type: "success", // "success" | "error"
+  title: "",
+  description: "",
+});
+
   const [selectedWinner, setSelectedWinner] = useState({
     rfqId: null,
     supplierId: null,
@@ -27,7 +34,7 @@ export default function AbstractOfQuotations({ rfq, groupedDetails = {}, committ
   const { toast } = useToast();
   const [selectedMember, setSelectedMember] = useState(null);
   const [replacementName, setReplacementName] = useState("");
-  const [awardMode, setAwardMode] = useState("whole-pr"); // "whole-pr" | "per-item"
+  const [awardMode, setAwardMode] = useState(rfq.award_mode ?? "whole-pr");
 
   // Initialize committee state from props
   const [committeeState, setCommitteeState] = useState(() => {
@@ -35,14 +42,25 @@ export default function AbstractOfQuotations({ rfq, groupedDetails = {}, committ
     const positions = ["secretariat", "member1", "member2", "member3", "vice_chair", "chair"];
 
     positions.forEach((pos) => {
-      const member = committee?.members?.find((m) => m.position === pos);
-      members[pos] = { name: member?.name || "", status: member?.status || "pending" };
+      const activeMember = committee?.members
+        ?.filter((m) => m.position === pos)
+        ?.find((m) => m.status === "active");
+
+      members[pos] = {
+        name: activeMember?.name || "",
+        status: activeMember?.status || "inactive", // 👈 fallback is inactive
+      };
     });
+
 
     return { status: committee?.status || "draft", members };
   });
+  console.log(committeeState);
 const [rollbackDialogOpen, setRollbackDialogOpen] = useState(false);
 const [rollbackTarget, setRollbackTarget] = useState(null);
+const [savingCommittee, setSavingCommittee] = useState(false);
+const [rollingBack, setRollingBack] = useState(false);
+const [confirmingWinner, setConfirmingWinner] = useState(false);
 
 const handleOpenRollbackDialog = (rfqId, supplierId, detailId = null) => {
   setRollbackTarget({ rfqId, supplierId, detailId });
@@ -51,6 +69,7 @@ const handleOpenRollbackDialog = (rfqId, supplierId, detailId = null) => {
 };
 
 const handleConfirmRollback = () => {
+  setRollingBack(true);
   const payload = {
     remarks,
     mode: awardMode,
@@ -61,10 +80,26 @@ const handleConfirmRollback = () => {
     preserveScroll: true,
     onSuccess: () => {
       setRollbackDialogOpen(false);
+      setRollingBack(false);
+      setResultDialog({
+        open: true,
+        type: "success",
+        title: "Rollback Successful",
+        description: "Winner selection has been rolled back.",
+      });
       toast({
         title: "Rollback Successful",
         description: "Winner selection has been rolled back.",
         duration: 3000,
+      });
+    },
+    onError: () => {
+      setRollingBack(false);
+      setResultDialog({
+        open: true,
+        type: "error",
+        title: "Rollback Failed",
+        description: "Unable to rollback winner. Please try again.",
       });
     },
   });
@@ -72,31 +107,7 @@ const handleConfirmRollback = () => {
 
 
 
-  const handleSaveCommittee = () => setCommitteeDialogOpen(true);
 
-  const handleConfirmSaveCommittee = () => {
-    const payload = {
-      id: committee?.id ?? null,
-      status: committeeState.status,
-      members: Object.entries(committeeState.members).map(([position, info]) => ({
-        position,
-        name: info.name,
-        status: info.status,
-      })),
-    };
-
-    router.post(route("bac.committee.save"), payload, {
-      preserveScroll: true,
-      onSuccess: () => {
-        setCommitteeDialogOpen(false);
-        toast({
-          title: "Committee Saved",
-          description: "BAC Committee has been updated successfully.",
-          duration: 3000,
-        });
-      },
-    });
-  };
 
   const handlePrintAOQ = (rfqId) =>
     window.open(route("bac_approver.print_aoq", { id: rfqId }), "_blank");
@@ -111,10 +122,11 @@ const handleConfirmRollback = () => {
   };
 
 const handleConfirmWinner = () => {
+  setConfirmingWinner(true);
   const payload = {
     supplier_id: selectedWinner.supplierId,
     remarks,
-    mode: awardMode, // ✅ always send mode
+    mode: awardMode, // 👈 now aligned with backend award_mode column
     ...(awardMode === "per-item" ? { detail_id: selectedWinner.detailId } : {}),
   };
 
@@ -122,6 +134,15 @@ const handleConfirmWinner = () => {
     preserveScroll: true,
     onSuccess: () => {
       setWinnerDialogOpen(false);
+      setConfirmingWinner(false);
+        setResultDialog({
+        open: true,
+        type: "success",
+        title: "Winner Marked",
+        description: awardMode === "per-item"
+          ? "Supplier has been awarded for the selected item."
+          : "Supplier has been awarded for the entire PR.",
+      });
       toast({
         title: "Winner Marked",
         description:
@@ -131,8 +152,18 @@ const handleConfirmWinner = () => {
         duration: 3000,
       });
     },
+    onError: () => {
+      setConfirmingWinner(false);
+      setResultDialog({
+        open: true,
+        type: "error",
+        title: "Failed to Mark Winner",
+        description: "Something went wrong while marking the winner. Please try again.",
+      });
+    },
   });
 };
+
 
 
   // --- Process supplier data ---
@@ -179,6 +210,8 @@ const hasPerItemWinners = pr.details.some((detail) =>
   (groupedDetails[detail.id] || []).some((q) => q.is_winner)
 );
 
+
+
   return (
     <ApproverLayout>
       <Head title={`Abstract for ${pr.pr_number}`} />
@@ -198,20 +231,23 @@ const hasPerItemWinners = pr.details.some((detail) =>
         </div>
 
         {/* Mode Selector */}
-        <div className="mb-6 flex gap-4">
-          <Button
-            variant={awardMode === "whole-pr" ? "default" : "outline"}
-            onClick={() => setAwardMode("whole-pr")}
-          >
-            Winner for Entire PR
-          </Button>
-          <Button
-            variant={awardMode === "per-item" ? "default" : "outline"}
-            onClick={() => setAwardMode("per-item")}
-          >
-            Winner per Item
-          </Button>
-        </div>
+      <div className="mb-6 flex gap-4">
+        <Button
+          variant={awardMode === "whole-pr" ? "default" : "outline"}
+          onClick={() => setAwardMode("whole-pr")}
+          disabled={!!rfq.award_mode} // disable if mode already chosen
+        >
+          Winner for Entire PR
+        </Button>
+        <Button
+          variant={awardMode === "per-item" ? "default" : "outline"}
+          onClick={() => setAwardMode("per-item")}
+          disabled={!!rfq.award_mode} // disable if mode already chosen
+        >
+          Winner per Item
+        </Button>
+      </div>
+
 
 
         {!hasFullBidSuppliers && (
@@ -283,29 +319,29 @@ const hasPerItemWinners = pr.details.some((detail) =>
                       ₱{parseFloat(s.total).toLocaleString()}
                     </td>
                     <td className="border px-4 py-2 text-center">
-  {winnerCounts[s.supplier.id] === totalDetailsCount ? (
-    <>
-      ✔️
-      <Button
-        size="sm"
-        variant="destructive"
-        className="ml-2"
-        onClick={() => handleOpenRollbackDialog(rfq.id, s.supplier.id)}
-      >
-        Rollback
-      </Button>
-    </>
-  ) : hasAnyWinner ? (
-    "—"
-  ) : (
-    <Button
-      size="sm"
-      onClick={() => handleOpenWinnerDialog(rfq.id, s.supplier.id)}
-    >
-      Mark as Winner
-    </Button>
-  )}
-</td>
+                      {winnerCounts[s.supplier.id] === totalDetailsCount ? (
+                        <>
+                          ✔️
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="ml-2"
+                            onClick={() => handleOpenRollbackDialog(rfq.id, s.supplier.id)}
+                          >
+                            Rollback
+                          </Button>
+                        </>
+                      ) : hasAnyWinner ? (
+                        "—"
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => handleOpenWinnerDialog(rfq.id, s.supplier.id)}
+                        >
+                          Mark as Winner
+                        </Button>
+                      )}
+                    </td>
 
 
                   </tr>
@@ -320,7 +356,8 @@ const hasPerItemWinners = pr.details.some((detail) =>
         {awardMode === "per-item" && (
           <div className="space-y-8 mb-10 border p-4 rounded-lg bg-white shadow-sm">
             {pr.details.map((detail) => {
-              const quotes = groupedDetails[detail.id] || [];
+               const quotes = groupedDetails[detail.id] || [];
+              const itemHasWinner = quotes.some((q) => q.is_winner); 
               return (
                 <div
                   key={detail.id}
@@ -342,40 +379,43 @@ const hasPerItemWinners = pr.details.some((detail) =>
                     <strong>Quantity:</strong> {detail.quantity} {detail.unit} <br />
                   </p>
 
-                  <table className="w-full text-sm border">
-                    <thead className="bg-gray-100">
+                  <table className="w-full text-sm border rounded-lg overflow-hidden">
+                    <thead className="bg-gray-100 text-gray-700">
                       <tr>
-                        <th className="border px-4 py-2">Supplier</th>
-                        <th className="border px-4 py-2 text-right">Quoted Price</th>
-                        <th className="border px-4 py-2 text-center">Winner</th>
+                        <th className="px-4 py-2 text-left">Supplier</th>
+                        <th className="px-4 py-2 text-right">Quoted Price</th>
+                        <th className="px-4 py-2 text-center">Winner</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {quotes.map((q) => (
-                        <tr key={q.supplier.id}>
-                          <td className="border px-4 py-2">{q.supplier.company_name}</td>
-                          <td className="border px-4 py-2 text-right">
+                    <tbody className="divide-y divide-gray-200">
+                      {quotes.map((q, idx) => (
+                        <tr key={idx} className="odd:bg-white even:bg-gray-50">
+                          <td className="px-4 py-2">{q.supplier.company_name}</td>
+                          <td className="px-4 py-2 text-right">
                             ₱{parseFloat(q.quoted_price || 0).toLocaleString()}
                           </td>
-                          <td className="border px-4 py-2 text-center">
+                          <td className="px-4 py-2 text-center">
                             {q.is_winner ? (
-                              <>
-                                ✔️
+                              <div className="flex justify-center items-center gap-2">
+                                <span className="text-green-600 font-bold">✔️</span>
                                 <Button
                                   size="sm"
                                   variant="destructive"
-                                  className="ml-2"
-                                  onClick={() => handleOpenRollbackDialog(rfq.id, q.supplier.id, detail.id)}
+                                  onClick={() =>
+                                    handleOpenRollbackDialog(rfq.id, q.supplier.id, detail.id)
+                                  }
                                 >
                                   Rollback
                                 </Button>
-                              </>
-                            ) : hasAnyWinner ? (
-                              "—"
+                              </div>
+                            ) : itemHasWinner ? (
+                              <span className="text-gray-400">—</span>
                             ) : (
                               <Button
                                 size="sm"
-                                onClick={() => handleOpenWinnerDialog(rfq.id, q.supplier.id, detail.id)}
+                                onClick={() =>
+                                  handleOpenWinnerDialog(rfq.id, q.supplier.id, detail.id)
+                                }
                               >
                                 Mark as Winner
                               </Button>
@@ -385,6 +425,7 @@ const hasPerItemWinners = pr.details.some((detail) =>
                       ))}
                     </tbody>
                   </table>
+
                 </div>
               );
             })}
@@ -393,40 +434,45 @@ const hasPerItemWinners = pr.details.some((detail) =>
 
 
         {/* BAC COMMITTEE */}
-        <div className="mb-8 p-4 border rounded-lg bg-gray-50 shadow-sm">
-          <h3 className="text-lg font-semibold mb-4">BAC Committee</h3>
-          <ul className="space-y-3">
-            {["chair", "vice_chair", "secretariat", "member1", "member2", "member3"].map(
-              (position) => {
-                const info = committeeState.members[position];
-                return (
-                  <li
-                    key={position}
-                    className="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm"
-                  >
-                    <div>
-                      <p className="font-semibold">{info?.name || "—"}</p>
-                      <p className="text-sm text-gray-500">
-                        {position.replace("_", " ").toUpperCase()}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedMember({ position, current: info });
-                        setReplacementName("");
-                        setCommitteeDialogOpen(true);
-                      }}
-                    >
-                      Replace
-                    </Button>
-                  </li>
-                );
-              }
-            )}
-          </ul>
-        </div>
+<div className="mb-8 p-4 border rounded-lg bg-gray-50 shadow-sm">
+  <h3 className="text-lg font-semibold mb-4">BAC Committee</h3>
+  <ul className="space-y-3">
+    {["chair", "vice_chair", "secretariat", "member1", "member2", "member3"].map(
+      (position) => {
+        const info = committeeState.members[position];
+        return (
+          info?.status === "active" && (   // ✅ Only render if active
+            <li
+              key={position}
+              className="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm"
+            >
+              <div>
+                <p className="font-semibold">{info.name || "—"}</p>
+                <p className="text-sm text-gray-500">
+                  {position.replace("_", " ").toUpperCase()}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedMember({ position, current: info });
+                  setReplacementName("");
+                  setCommitteeDialogOpen(true);
+                }}
+              >
+                Replace
+              </Button>
+            </li>
+          )
+        );
+      }
+    )}
+  </ul>
+</div>
+
+
+
       </div>
 
       {/* WINNER CONFIRMATION DIALOG */}
@@ -441,7 +487,7 @@ const hasPerItemWinners = pr.details.some((detail) =>
             <Button variant="secondary" onClick={() => setWinnerDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleConfirmWinner}>Confirm</Button>
+            <Button disabled={confirmingWinner} onClick={handleConfirmWinner}>{confirmingWinner ? "Confirming Winner..." : "Confirm" }</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -471,9 +517,11 @@ const hasPerItemWinners = pr.details.some((detail) =>
               Cancel
             </Button>
             <Button
+              disabled={savingCommittee}
               onClick={() => {
                 if (!replacementName.trim()) return;
-
+                setSavingCommittee(true);
+                // 1. Update local state immediately
                 setCommitteeState((prev) => ({
                   ...prev,
                   members: {
@@ -485,42 +533,98 @@ const hasPerItemWinners = pr.details.some((detail) =>
                   },
                 }));
 
-                setCommitteeDialogOpen(false);
-                toast({
-                  title: "Member Replaced",
-                  description: `${selectedMember.position.replace("_", " ")} updated successfully.`,
-                  duration: 3000,
+                // 2. Build payload for backend
+                const payload = {
+                  id: committee?.id ?? null,
+                  status: committeeState.status,
+                  members: Object.entries({
+                    ...committeeState.members,
+                    [selectedMember.position]: {
+                      name: replacementName.trim(),
+                      status: "active",
+                    },
+                  }).map(([position, info]) => ({
+                    position,
+                    name: info.name,
+                    status: info.status,
+                  })),
+                };
+
+                // 3. Submit to backend
+                router.post(route("bac.committee.save"), payload, {
+                  preserveScroll: true,
+                  onSuccess: () => {
+                    setSavingCommittee(false);
+                    setCommitteeDialogOpen(false);
+                    setResultDialog({
+                      open: true,
+                      type: "success",
+                      title: "Committee Updated",
+                      description: `${selectedMember.position.replace("_", " ")} replaced successfully.`,
+                    });
+                    toast({
+                      title: "Committee Updated",
+                      description: `${selectedMember.position.replace("_", " ")} replaced successfully.`,
+                      duration: 3000,
+                    });
+                  },
+                  onError: () => {
+                    setSavingCommittee(false);
+                    setResultDialog({
+                      open: true,
+                      type: "error",
+                      title: "Committee Update Failed",
+                      description: "Unable to replace committee member. Please try again.",
+                    });
+                  },
                 });
               }}
             >
-              Confirm
+              {savingCommittee ? "Saving..." : "Confirm"}
+            </Button>
+
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={rollbackDialogOpen} onOpenChange={setRollbackDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rollback Winner</DialogTitle>
+            <DialogDescription>
+              Provide remarks for rolling back this winner selection.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+          />
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setRollbackDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button disabled={rollingBack} variant="destructive" onClick={handleConfirmRollback}>
+              {rollingBack ? "Rolling Back Winner..." : "Confirm Rollback"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-<Dialog open={rollbackDialogOpen} onOpenChange={setRollbackDialogOpen}>
-  <DialogContent>
-    <DialogHeader>
-      <DialogTitle>Rollback Winner</DialogTitle>
-      <DialogDescription>
-        Provide remarks for rolling back this winner selection.
-      </DialogDescription>
-    </DialogHeader>
-    <Textarea
-      value={remarks}
-      onChange={(e) => setRemarks(e.target.value)}
-    />
-    <DialogFooter>
-      <Button variant="secondary" onClick={() => setRollbackDialogOpen(false)}>
-        Cancel
-      </Button>
-      <Button variant="destructive" onClick={handleConfirmRollback}>
-        Confirm Rollback
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
 
+    {/* RESULT DIALOG */}
+    <Dialog open={resultDialog.open} onOpenChange={(open) => setResultDialog(prev => ({ ...prev, open }))}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className={resultDialog.type === "error" ? "text-red-600" : "text-green-600"}>
+            {resultDialog.title}
+          </DialogTitle>
+          <DialogDescription>{resultDialog.description}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button onClick={() => setResultDialog(prev => ({ ...prev, open: false }))}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     </ApproverLayout>
   );

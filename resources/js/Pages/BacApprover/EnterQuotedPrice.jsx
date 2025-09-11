@@ -7,7 +7,7 @@ import {
   Trash2,
 } from "lucide-react";
 import ApproverLayout from "@/Layouts/ApproverLayout";
-import { Head, router, useForm } from "@inertiajs/react";
+import { Head, router, useForm, usePage } from "@inertiajs/react";
 import {
   Dialog,
   DialogContent,
@@ -20,8 +20,10 @@ import { Button } from "@headlessui/react";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { PencilSquareIcon } from "@heroicons/react/24/solid";
+import { useToast } from "@/hooks/use-toast";
 
 export default function EnterQuotedPrices({ pr, suppliers, rfqs, purchaseRequest, rfq_details, categories }) {
+  const { toast } = useToast();
 useEffect(() => {
   if (rfq_details && rfq_details.length > 0) {
     // Build a map of { pr_details_id: supplier_id }
@@ -85,19 +87,9 @@ const [entirePRSupplier, setEntirePRSupplier] = useState(null);
     return initial;
   });
 
-  // Form for single quote submission
-const form = useForm({
-  pr_id: pr?.id ?? null,
-  pr_details_id: null,
-  quoted_price: null,
-  supplier_id: null,
-});
 
 
-  // Form for bulk quote submission
-  const bulkForm = useForm({
-    quotes: [],
-  });
+
 
   // Form for selections (supplier + item + estimated bid)
   const { data, setData } = useForm({
@@ -309,6 +301,8 @@ const handleSubmitAll = () => {
       setData(prev => ({ ...prev, estimated_bid: unitPrice }));
     }
   };
+  const { flash } = usePage().props;
+
 
   // Handle adding new supplier
   const handleSubmitSupplier = async (e) => {
@@ -356,17 +350,16 @@ const handleSubmitAll = () => {
   };
 
   // Filtering suppliers for modal
-  const selectedItem = selectedItemId ? pr.details.find(d => d.id === selectedItemId) : null;
-// Category of the selected PR item
-const filterCategoryId = selectedItem?.product?.supplier_category_id ?? null;
-const selectedItemCategoryName = selectedItem?.product?.supplier_category?.name ?? "All Categories";
+const selectedItem = selectedItemId && pr.details?.length
+  ? pr.details.find(d => d.id === selectedItemId)
+  : null;
+
+
+
 
 const filteredSuppliers = supplierList
   .filter(supplier => {
-    if (showAllSuppliers || !filterCategoryId) return true;
-    return String(supplier.category_id) === String(filterCategoryId);
-  })
-  .filter(supplier => {
+    if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
       supplier.representative_name?.toLowerCase().includes(q) ||
@@ -375,15 +368,14 @@ const filteredSuppliers = supplierList
     );
   })
   .filter(supplier => {
-    // 🚫 Exclude if this supplier already quoted for the selected item
     return !rfq_details.some(
       (q) => q.pr_details_id === selectedItemId && q.supplier_id === supplier.id
     );
   });
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [showAllSuppliers, filterCategoryId]);
+useEffect(() => {
+  setCurrentPage(1);
+}, [searchQuery]);
   const closeSupplierModal = () => {
     setShowModal(false);
     setEntirePRSupplier(null); // reset to avoid stale global supplier
@@ -397,47 +389,92 @@ const filteredSuppliers = supplierList
   const currentSuppliers = filteredSuppliers.slice(indexOfFirst, indexOfLast);
   const [editingQuotes, setEditingQuotes] = useState({});
 
-  const handleDeleteQuote = (detailId, supplierId, uniqueId) => {
-    setSubmittingId(uniqueId);
+const handleDeleteQuote = (detailId, supplierId, uniqueId) => {
+  setSubmittingId(uniqueId);
 
-    router.delete(route("bac_approver.delete_quoted"), {
-      data: {
-        pr_id: pr.id,
-        pr_details_id: detailId,
-        supplier_id: supplierId,
-      },
-      preserveScroll: true,
-      onSuccess: () => {
-        setSubmittingId(null);
+  router.delete(route("bac_approver.delete_quoted"), {
+    data: {
+      pr_id: pr.id,
+      pr_details_id: detailId,
+      supplier_id: supplierId,
+    },
+    preserveScroll: true,
+    onSuccess: () => {
+      setSubmittingId(null);
 
-        // Reset local state
-        setQuotedPrices((prev) => {
-          const next = { ...prev };
-          delete next[uniqueId];
-          return next;
-        });
-        setEditingQuotes((prev) => {
-          const next = { ...prev };
-          delete next[uniqueId];
-          return next;
-        });
+      // Reset local state
+      setQuotedPrices((prev) => {
+        const next = { ...prev };
+        delete next[uniqueId];
+        return next;
+      });
+      setEditingQuotes((prev) => {
+        const next = { ...prev };
+        delete next[uniqueId];
+        return next;
+      });
+      setSelectedSuppliersByItem((prev) => {
+        const updated = { ...prev };
+        if (Array.isArray(updated[detailId])) {
+          updated[detailId] = updated[detailId].filter((id) => id !== supplierId);
+          if (updated[detailId].length === 0) {
+            delete updated[detailId]; // clean up empty entries
+          }
+        }
+        return updated;
+      });
 
-        showDialog({
-          title: "Deleted!",
-          message: "Quoted price removed successfully.",
-          type: "success",
-        });
-      },
-      onError: () => {
-        setSubmittingId(null);
-        showDialog({
-          title: "Error!",
-          message: "Could not delete quoted price.",
-          type: "error",
-        });
-      },
-    });
-  };
+      // ✅ Show Toast
+      toast({
+        title: "Deleted",
+        description: "Quoted price removed successfully.",
+        variant: "default",
+        setTimeout: 3000
+      });
+
+      // ✅ Show Dialog (shadcn)
+      showDialog({
+        open: true,
+        title: "Deleted!",
+        description: "The quoted price was removed successfully.",
+      });
+    },
+    onFinish: (visit) => {
+      setSubmittingId(null);
+
+      if (flash?.message) {
+      toast({
+        title: flash.status === "success" ? "Deleted" : "Error",
+        description: flash.message,
+        variant: flash.status === "success" ? "default" : "destructive",
+        setTimeout: 3000
+      });
+
+      showDialog({
+        open: true,
+        title: flash.status === "success" ? "Deleted!" : "Error!",
+        description: flash.message,
+      });
+    }
+    },
+    onError: () => {
+      setSubmittingId(null);
+
+      toast({
+        title: "Error",
+        description: "Could not delete quoted price.",
+        variant: "destructive",
+        setTimeout: 3000
+      });
+
+      showDialog({
+        open: true,
+        title: "Error!",
+        description: "Something went wrong while deleting.",
+      });
+    },
+  });
+};
   const [warningDialogOpen, setWarningDialogOpen] = useState(false);
 const [skippedItems, setSkippedItems] = useState([]);
 
@@ -671,11 +708,9 @@ const [skippedItems, setSkippedItems] = useState([]);
 
             {/* Title */}
             <h2 className="text-xl font-semibold text-gray-800 mb-4">
-            {!showAllSuppliers && filterCategoryId
-              ? `Recommended Suppliers for ${selectedItemCategoryName}`
-              : "Select a Supplier"}
-
+              Select a Supplier
             </h2>
+
 
             {/* Search + toggle */}
             <div className="flex justify-between items-center mb-5 gap-3">
@@ -690,18 +725,6 @@ const [skippedItems, setSkippedItems] = useState([]);
                 className="w-full max-w-xs border border-gray-300 rounded-lg px-4 py-2 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition"
               />
 
-              {selectedItemId && (
-                <button
-                  onClick={() => setShowAllSuppliers((prev) => !prev)}
-                  className={`text-sm px-4 py-2 rounded-lg transition-all shadow-sm ${
-                    showAllSuppliers
-                      ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  }`}
-                >
-                  {showAllSuppliers ? "Show Recommended" : "Show All Suppliers"}
-                </button>
-              )}
             </div>
 
             {/* Table */}

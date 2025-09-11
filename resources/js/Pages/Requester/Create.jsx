@@ -16,36 +16,38 @@ import { Button } from "@/components/ui/button";
 import axios from "axios";
 
 
-function CreateProductModal({ open, onClose, units, categories, onProductSaved }) {
+function CreateProductModal({ open, onClose, units, categories, onProductSaved, supplyCategories }) {
   const { data, setData, post, processing, errors, reset } = useForm({
     name: "",
     specs: "",
     unit_id: "",
     category_id: "",
     default_price: "",
+    supply_category_id: ""
   });
+   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
 
   // Reset form whenever modal closes
   useEffect(() => {
     if (!open) reset();
   }, [open]);
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    post(route("requester.store_product"), {
-      preserveScroll: true,
-      onSuccess: (page) => {
-        const newProduct = page.props.flash?.newProduct; 
+
+    try {
+        const response = await axios.post(route("requester.store_product"), data);
+        const newProduct = response.data.product;
+
         if (newProduct) {
-          onProductSaved(newProduct); // 👈 send back to Create
+        onProductSaved(newProduct); // ✅ trigger your dialog flow
         }
+
         onClose();
-      },
-      onError: () => {
-        console.error("Error saving product");
-      },
-    });
-  };
+    } catch (error) {
+        console.error("Error saving product:", error);
+    }
+    };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -99,13 +101,13 @@ function CreateProductModal({ open, onClose, units, categories, onProductSaved }
 
           {/* Category */}
           <div>
-            <label className="text-sm font-medium">Category</label>
+            <label className="text-sm font-medium">Product Type</label>
             <select
               value={data.category_id}
               onChange={(e) => setData("category_id", e.target.value)}
               className="w-full border rounded px-3 py-2"
             >
-              <option value="">-- Select Category --</option>
+              <option value="">-- Select Product Type --</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -113,6 +115,23 @@ function CreateProductModal({ open, onClose, units, categories, onProductSaved }
               ))}
             </select>
             {errors.category_id && <p className="text-red-600 text-sm">{errors.category_id}</p>}
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Supply Category</label>
+            <select
+              value={data.supply_category_id}
+              onChange={(e) => setData("supply_category_id", e.target.value)}
+              className="w-full border rounded px-3 py-2"
+            >
+              <option value="">-- Select Product Type --</option>
+              {supplyCategories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {errors.supply_category_id && <p className="text-red-600 text-sm">{errors.supply_category_id}</p>}
           </div>
 
           {/* Price */}
@@ -130,17 +149,16 @@ function CreateProductModal({ open, onClose, units, categories, onProductSaved }
           </div>
 
           <DialogFooter className="mt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
+                <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
-            </Button>
-            <Button
-            type="button"
-            onClick={handleSave}
-            disabled={processing}
-            >
-            {processing ? "Saving..." : "Save Product"}
-            </Button>
-
+                </Button>
+                <Button
+                type="button"   // ⬅️ change from "submit"
+                disabled={processing}
+                onClick={handleSave} // ⬅️ call manually instead
+                >
+                {processing ? "Saving..." : "Save Product"}
+                </Button>
             </DialogFooter>
 
         </form>
@@ -386,7 +404,7 @@ function ProductModal({ isOpen, onClose, onConfirm, product }) {
     );
 }
 
-export default function Create({ requestedBy, products, units, categories }) {
+export default function Create({ requestedBy, products, units, categories, supplyCategories }) {
     const user = usePage().props.auth.user;
     const fullName = `${user.firstname} ${user.middlename ?? ''} ${user.lastname}`.trim();
     const prNumberFromServer = usePage().props.pr_number;
@@ -406,8 +424,8 @@ export default function Create({ requestedBy, products, units, categories }) {
     const [pendingProduct, setPendingProduct] = useState(null);
 
     const handleProductSaved = (newProduct) => {
-    setPendingProduct(newProduct);
-    setShowSavedDialog(true);
+        setPendingProduct(newProduct);
+        setShowSavedDialog(true);
     };
 
 
@@ -638,6 +656,7 @@ useEffect(() => {
                         units={units}
                         categories={categories}
                         onProductSaved={handleProductSaved}
+                        supplyCategories={supplyCategories}
                     />
 
                     <ProductTable

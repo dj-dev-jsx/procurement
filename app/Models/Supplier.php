@@ -14,7 +14,7 @@ class Supplier extends Model
     protected $fillable = ["company_name","address", "tin_num", "representative_name", "category_id"];
     public function category()
     {
-        return $this->belongsTo(SupplierCategory::class, 'category_id');
+        return $this->belongsTo(SupplyCategory::class, 'category_id');
     }
 
 }

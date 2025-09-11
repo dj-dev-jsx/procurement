@@ -7,6 +7,7 @@ use App\Http\Requests\PurchaseRequestRequest;
 use App\Models\Category;
 use App\Models\Division;
 use App\Models\PurchaseRequest;
+use App\Models\SupplyCategory;
 use App\Models\Unit;
 use App\Models\User;
 use Barryvdh\Snappy\Facades\SnappyPdf;
@@ -143,6 +144,7 @@ class RequesterController extends Controller
         $prNumber = $this->generatePrNumber();
         $units = Unit::all();
         $categories = Category::all();
+        $supplyCategory = SupplyCategory::all();
         $products = Products::with('unit')
                     ->select('id', 'name', 'specs', 'unit_id', 'default_price')
                     ->get();
@@ -153,6 +155,7 @@ class RequesterController extends Controller
         return Inertia::render('Requester/Create', [
             'units' => $units,
             'categories' => $categories,
+            'supplyCategories' => $supplyCategory,
             'requestedBy' => $requestedBy,
             'auth' => ['user' => $user],
             'pr_number' => $prNumber,
@@ -168,20 +171,27 @@ class RequesterController extends Controller
         ]);
     }
     
-    public function store_product(Request $request){
-        $validated = $request->validate([
+public function store_product(Request $request)
+{
+    $validated = $request->validate([
         'name' => 'required|string|max:255',
         'specs' => 'nullable|string',
         'unit_id' => 'required|exists:tbl_units,id',
         'category_id' => 'required|exists:tbl_categories,id',
+        'supply_category_id' => 'required|exists:tbl_supply_categories,id',
         'default_price' => 'nullable|numeric|min:0',
     ]);
 
-    Products::create($validated);
+    $product = Products::create($validated)->load('unit');
 
-    return redirect()->route('requester.create') // go back to PR creation
-                     ->with('success', 'Product created successfully!');
-    }
+    return response()->json([
+        'success' => true,
+        'message' => 'Product created successfully!',
+        'product' => $product,
+    ]);
+}
+
+
 public function store(Request $request)
 {
     $request->validate([

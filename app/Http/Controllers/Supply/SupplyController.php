@@ -19,7 +19,7 @@ use App\Models\PurchaseRequest;
 use App\Models\RFQ;
 use App\Models\RIS;
 use App\Models\Supplier;
-use App\Models\SupplierCategory;
+use App\Models\SupplyCategory;
 use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
@@ -41,7 +41,7 @@ class SupplyController extends Controller
 
     $totalIssued = $totalIcs + $totalRis + $totalPar;
     $totalPo = PurchaseOrder::count();
-    $categories = SupplierCategory::all();
+    $categories = SupplyCategory::all();
 
     $user = Auth::user();
 

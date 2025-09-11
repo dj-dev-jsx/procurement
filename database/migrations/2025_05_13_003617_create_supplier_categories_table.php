@@ -12,14 +12,14 @@ return new class extends Migration
      */
     public function up()
     {
-        Schema::create('tbl_supplier_categories', function (Blueprint $table) {
+        Schema::create('tbl_supply_categories', function (Blueprint $table) {
             $table->id();
             $table->string('name')->unique();
             $table->timestamps();
         });
 
         // Optionally seed some categories
-        DB::table('tbl_supplier_categories')->insert([
+        DB::table('tbl_supply_categories')->insert([
             ['name' => 'Office Supplies'],
             ['name' => 'IT Equipment'],
             ['name' => 'Furniture'],
@@ -31,6 +31,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('tbl_supplier_categories');
+        Schema::dropIfExists('tbl_supply_categories');
     }
 };

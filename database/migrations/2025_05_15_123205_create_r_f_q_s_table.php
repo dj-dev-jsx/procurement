@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained('users')->restrictOnDelete();
             $table->foreignId('pr_id')->constrained('tbl_purchase_requests')->restrictOnDelete();
             $table->boolean('grouped')->default(true);
+            $table->enum('award_mode', ['whole-pr', 'per-item'])->nullable();
             $table->timestamps();
         });
 

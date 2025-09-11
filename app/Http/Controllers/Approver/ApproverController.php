@@ -10,7 +10,7 @@ use App\Models\PurchaseRequestDetail;
 use App\Models\RFQ;
 use App\Models\RFQDetail;
 use App\Models\Supplier;
-use App\Models\SupplierCategory;
+use App\Models\SupplyCategory;
 use App\Models\User;
 use App\Notifications\PurchaseRequestApproved;
 use App\Notifications\PurchaseRequestSentBack;
@@ -246,7 +246,7 @@ public function generate_rfq($id)
         ->findOrFail($id);
 
     $suppliers = Supplier::with('category')->get();
-    $categories = SupplierCategory::all();
+    $categories = SupplyCategory::all();
 
     $rfqs = RFQ::with([
         'details.supplier',
@@ -293,7 +293,7 @@ public function store_supplier(Request $request)
         'address'             => 'nullable|string|max:255',
         'tin_num'             => 'nullable|string|max:50',
         'representative_name' => 'required|string|max:255',
-        'category_id'         => 'nullable|exists:tbl_supplier_categories,id',
+        'category_id'         => 'nullable|exists:tbl_supply_categories,id',
     ]);
 
     try {
@@ -390,8 +390,13 @@ public function print_rfq_per_item($rfqId, $detailId)
 
     public function quoted_price($id)
 {
-    $pr = PurchaseRequest::with(['details.product.unit', 'division', 'focal_person'])
-        ->findOrFail($id);
+    $pr = PurchaseRequest::with([
+        'details.product.unit',
+        'details.product.supplier_category',
+        'division',
+        'focal_person'
+    ])->findOrFail($id);
+
 
 
     $rfqs = RFQ::where('pr_id', $id)->get();
@@ -404,7 +409,7 @@ public function print_rfq_per_item($rfqId, $detailId)
 
 
     $suppliers = Supplier::with('category')->get();
-    $categories = SupplierCategory::all();
+    $categories = SupplyCategory::all();
     
 
 
@@ -439,8 +444,16 @@ public function print_rfq_per_item($rfqId, $detailId)
                     'quantity' => $detail->quantity,
                     'unit_price' => $detail->unit_price,
                     'total_price' => $detail->quantity * $detail->unit_price,
+                    'supply_category_id' => $detail->product->supply_category_id ?? null,
+                    'supplier_category' => $detail->product->supplier_category
+                        ? [
+                            'id' => $detail->product->supplier_category->id,
+                            'name' => $detail->product->supplier_category->name,
+                        ]
+                        : null,
                 ];
             }),
+
         ],
         'suppliers' => $suppliers,
         'rfqs' => $rfqs,
@@ -568,18 +581,22 @@ public function submit_bulk_quoted(Request $request)
         return Inertia::render('BacApprover/AbstractOfQuotations', [
             'rfq' => $rfq,
             'groupedDetails' => $rfqDetails,
-            'committee' => $committee
+            'committee' => $committee,
+            'award_mode' => $rfq->award_mode, // 🔑
         ]);
+
     }
 public function markWinner(Request $request, $id)
 {
     $supplierId = $request->input('supplier_id');
     $remarks = $request->input('remarks');
-    $prDetailId = $request->input('detail_id'); // ✅ check from payload
+    $prDetailId = $request->input('detail_id');
 
     if (!$supplierId) {
         return back()->with('error', 'A supplier was not specified.');
     }
+
+    $rfq = RFQ::findOrFail($id);
 
     if ($prDetailId) {
         // --- PER-ITEM WINNER LOGIC ---
@@ -596,6 +613,10 @@ public function markWinner(Request $request, $id)
             $quoteToMark->is_winner = true;
             $quoteToMark->remarks = $remarks;
             $quoteToMark->save();
+
+            // 🔑 mark RFQ award mode
+            $rfq->award_mode = 'per-item';
+            $rfq->save();
         } else {
             return back()->with('error', 'Could not find the specified quote to mark as winner.');
         }
@@ -612,6 +633,10 @@ public function markWinner(Request $request, $id)
                 'is_winner' => true,
                 'remarks' => $remarks,
             ]);
+
+        // 🔑 mark RFQ award mode
+        $rfq->award_mode = 'whole-pr';
+        $rfq->save();
     }
 
     return back()->with('success', 'Winner has been successfully updated.');
@@ -630,15 +655,15 @@ public function rollbackWinner(Request $request, $id)
 
     $changes = [];
     if ($request->mode === 'whole-pr') {
-        // Rollback all winners for this RFQ
         $changes = $rfq->details()
             ->where('is_winner', true)
             ->get(['id', 'pr_details_id', 'supplier_id']);
         
         $rfq->details()->update(['is_winner' => false]);
+        $rfq->award_mode = null; // reset award mode
+        $rfq->save();
 
     } elseif ($request->mode === 'per-item' && $request->detail_id) {
-        // Rollback winner for specific item
         $changes = $rfq->details()
             ->where('pr_details_id', $request->detail_id)
             ->where('is_winner', true)
@@ -647,20 +672,27 @@ public function rollbackWinner(Request $request, $id)
         $rfq->details()
             ->where('pr_details_id', $request->detail_id)
             ->update(['is_winner' => false]);
+
+        // Check if any winners left for this RFQ
+        $hasAnyWinnerLeft = $rfq->details()->where('is_winner', true)->exists();
+        if (!$hasAnyWinnerLeft) {
+            $rfq->award_mode = null; // reset only if no more winners
+            $rfq->save();
+        }
     }
 
-    // 🔎 Log the rollback in audit logs
     AuditLogs::create([
         'action'       => 'rollback_winner',
         'entity_type'  => 'RFQ',
         'entity_id'    => $rfq->id,
-        'changes'      => $changes->toJson(), // snapshot of what was rolled back
-        'reason'       => $request->remarks,  // remarks entered by user
+        'changes'      => $changes->toJson(),
+        'reason'       => $request->remarks,
         'user_id'      => $user->id,
     ]);
 
     return back()->with('success', 'Winner rollback successful.');
 }
+
 
 
 
@@ -683,24 +715,23 @@ public function printAOQ($id, $pr_detail_id = null)
             abort(404, 'PR Detail not found.');
         }
 
-        $top3 = $rfq->details
+        $quotes = $rfq->details
             ->where('pr_details_id', $pr_detail_id)
             ->sortBy('quoted_price')
-            ->take(3)
             ->values();
 
         // always render winner first if exists
-        $winner = $top3->firstWhere('is_winner', 1);
+        $winner = $quotes->firstWhere('is_winner', 1);
         if ($winner) {
-            $top3 = collect([$winner])
-                ->merge($top3->where('id', '!=', $winner->id))
+            $quotes = collect([$winner])
+                ->merge($quotes->where('id', '!=', $winner->id))
                 ->values();
         }
 
         $pdf = PDF::loadView('pdf.aoq_item', [
             'rfq'      => $rfq,
             'prDetail' => $prDetail,
-            'top3'     => $top3
+            'quotes'   => $quotes
         ]);
 
         return $pdf->inline('AOQ_item_'.$pr_detail_id.'.pdf');
@@ -709,27 +740,57 @@ public function printAOQ($id, $pr_detail_id = null)
     // ----------------------
     // FULL-PR AOQ MODE
     // ----------------------
+    if ($rfq->award_mode === 'whole-pr') {
+    $prItemCount = $rfq->purchaseRequest->details->count();
+
     $supplierTotals = $rfq->details
         ->groupBy('supplier_id')
+        ->filter(function ($quotes) use ($prItemCount) {
+            // Only keep suppliers who quoted ALL items
+            return $quotes->pluck('pr_details_id')->unique()->count() === $prItemCount;
+        })
         ->map(function ($quotes) {
             return [
                 'supplier'     => $quotes->first()->supplier,
                 'total_amount' => $quotes->sum('quoted_price'),
-                'is_winner'    => $quotes->first()->is_winner, // ✅ add this
+                'is_winner'    => $quotes->contains('is_winner', 1),
             ];
         })
         ->sortBy('total_amount')
-        ->take(3)
         ->values();
 
-
     $pdf = PDF::loadView('pdf.aoq_full', [
-        'rfq'      => $rfq,
-        'top3'     => $supplierTotals
+        'rfq'       => $rfq,
+        'suppliers' => $supplierTotals
     ]);
 
     return $pdf->inline('AOQ_full_'.$id.'.pdf');
 }
+
+    // per-item awarding but no $pr_detail_id provided
+    // show all items with their supplier quotes
+    // else {
+        
+    //     $items = $rfq->purchaseRequest->details->map(function ($prDetail) use ($rfq) {
+    //         return [
+    //             'prDetail' => $prDetail,
+    //             'quotes'   => $rfq->details
+    //                 ->where('pr_details_id', $prDetail->id)
+    //                 ->sortBy('quoted_price')
+    //                 ->values()
+    //         ];
+    //     });
+
+    //     $pdf = PDF::loadView('pdf.aoq_per_item_summary', [
+    //         'rfq'   => $rfq,
+    //         'items' => $items
+    //     ]);
+
+    //     return $pdf->inline('AOQ_per_item_'.$id.'.pdf');
+    // }
+}
+
+
 public function send_back(Request $request, $id)
 {
     $request->validate([
@@ -753,31 +814,43 @@ public function send_back(Request $request, $id)
 }
 
 public function delete_quoted(Request $request)
-    {
-        $request->validate([
-            'pr_id' => 'required|integer',
-            'pr_details_id' => 'required|integer',
-            'supplier_id' => 'required|integer',
+{
+    $request->validate([
+        'pr_id' => 'required|integer',
+        'pr_details_id' => 'required|integer',
+        'supplier_id' => 'required|integer',
+    ]);
+
+    try {
+        $deleted = RFQDetail::whereHas('rfq', function ($q) use ($request) {
+                $q->where('pr_id', $request->pr_id);
+            })
+            ->where('pr_details_id', $request->pr_details_id)
+            ->where('supplier_id', $request->supplier_id)
+            ->delete();
+
+        if ($deleted) {
+            return redirect()->back()->with([
+                'status' => 'success',
+                'message' => 'Quoted price deleted successfully.'
+            ]);
+        }
+
+        return redirect()->back()->with([
+            'status' => 'error',
+            'message' => 'Quoted price not found.'
         ]);
 
-        try {
-            $deleted = RFQDetail::whereHas('rfq', function ($q) use ($request) {
-                    $q->where('pr_id', $request->pr_id);
-                })
-                ->where('pr_details_id', $request->pr_details_id)
-                ->where('supplier_id', $request->supplier_id)
-                ->delete();
 
-            if ($deleted) {
-                return response()->json(['message' => 'Quoted price deleted successfully.'], 200);
-            }
+    } catch (\Exception $e) {
+        return redirect()->back()->with([
+            'status' => 'error',
+            'message' => 'Error deleting quoted price' . $e->getMessage(),
+        ]);
 
-            return response()->json(['message' => 'Quoted price not found.'], 404);
-
-        } catch (\Exception $e) {
-            return response()->json(['message' => 'Error deleting quoted price: ' . $e->getMessage()], 500);
-        }
     }
+}
+
 
     public function save_committee(Request $request)
     {
